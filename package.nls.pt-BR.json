@@ -1,0 +1,21 @@
+{
+  "extension.displayName": "A11y MCP — Validador de Acessibilidade",
+  "extension.description": "Valida a acessibilidade WCAG 2.2 (AAA) em arquivos HTML, JSX e TSX usando as regras do AccessMonitor. Exibe diagnósticos no painel Problemas e disponibiliza ferramentas para o GitHub Copilot (MCP).",
+  "command.validateFile.title": "A11y: Validar Arquivo Atual",
+  "command.validateWorkspace.title": "A11y: Validar Workspace",
+  "command.category": "Acessibilidade",
+  "config.title": "A11y MCP",
+  "config.wcagLevel.description": "Nível mínimo de conformidade WCAG a ser aplicado.",
+  "config.include.description": "Padrões glob para arquivos a validar.",
+  "config.exclude.description": "Padrões glob para arquivos a excluir da validação.",
+  "tool.validateFile.displayName": "Validar Acessibilidade do Arquivo",
+  "tool.validateFile.modelDescription": "Valida problemas de acessibilidade em um arquivo HTML, JSX ou TSX com base nas regras WCAG 2.2 (AAA) e AccessMonitor. Retorna uma lista de violações com ID da regra, critério WCAG, severidade (error/warning/notice), o elemento infrator, número da linha e sugestão de correção. Use quando precisar auditar a acessibilidade de um arquivo específico.",
+  "tool.validateFile.input.filePath": "Caminho absoluto ou relativo ao workspace do arquivo HTML, JSX ou TSX a validar.",
+  "tool.validateWorkspace.displayName": "Validar Acessibilidade do Workspace",
+  "tool.validateWorkspace.modelDescription": "Verifica todos os arquivos HTML, JSX e TSX do workspace (ou de uma subpasta específica) em busca de violações de acessibilidade WCAG 2.2. Retorna um resumo com totais por severidade e um detalhamento por arquivo. Use para obter uma visão geral da saúde de acessibilidade de um projeto.",
+  "tool.validateWorkspace.input.folder": "Pasta relativa ao workspace para limitar o escopo da verificação. Padrão: raiz completa do workspace.",
+  "tool.validateWorkspace.input.maxFiles": "Número máximo de arquivos a verificar. Padrão: 100.",
+  "tool.getRule.displayName": "Obter Detalhes da Regra de Acessibilidade",
+  "tool.getRule.modelDescription": "Retorna a definição completa de uma regra de acessibilidade WCAG ou AccessMonitor: descrição, critério de sucesso WCAG afetado, nível de conformidade, severidade padrão, orientação de correção e URL de referência. Use para explicar uma regra ao usuário ou obter mais contexto antes de corrigir uma violação.",
+  "tool.getRule.input.ruleId": "O ID da regra a consultar, ex: 'img_01b', 'title_02', 'aria_01', 'hx_03'."
+}

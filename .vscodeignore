@@ -11,3 +11,4 @@ tsconfig.json
 esbuild.js
 src/**
 images/icon.svg
+.node-version

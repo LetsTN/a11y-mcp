@@ -15,20 +15,20 @@ export class GetRuleTool implements vscode.LanguageModelTool<GetRuleInput> {
     const rule = RULES[ruleId];
     if (rule) {
       const lines = [
-        `## Accessibility Rule: ${rule.id}`,
+        vscode.l10n.t("## Accessibility Rule: {0}", rule.id),
         "",
-        `**Title:** ${rule.title}`,
-        `**WCAG Criteria:** ${rule.wcagCriteria.join(", ")}`,
-        `**WCAG Level:** ${rule.wcagLevel}`,
-        `**Default Severity:** ${rule.severity}`,
+        vscode.l10n.t("**Title:** {0}", vscode.l10n.t(rule.title)),
+        vscode.l10n.t("**WCAG Criteria:** {0}", rule.wcagCriteria.join(", ")),
+        vscode.l10n.t("**WCAG Level:** {0}", rule.wcagLevel),
+        vscode.l10n.t("**Default Severity:** {0}", rule.severity),
         "",
-        `### Description`,
-        rule.description,
+        vscode.l10n.t("### Description"),
+        vscode.l10n.t(rule.description),
         "",
-        `### How to Fix`,
-        rule.fix,
+        vscode.l10n.t("### How to Fix"),
+        vscode.l10n.t(rule.fix),
         "",
-        `### Reference`,
+        vscode.l10n.t("### Reference"),
         rule.helpUrl,
       ];
       return new vscode.LanguageModelToolResult([
@@ -46,17 +46,29 @@ export class GetRuleTool implements vscode.LanguageModelTool<GetRuleInput> {
     if (matches.length === 0) {
       return new vscode.LanguageModelToolResult([
         new vscode.LanguageModelTextPart(
-          `No rule found with ID "${ruleId}".\n\nAvailable rules: ${RULE_IDS.join(", ")}`,
+          vscode.l10n.t(
+            'No rule found with ID "{0}".\n\nAvailable rules: {1}',
+            ruleId,
+            RULE_IDS.join(", "),
+          ),
         ),
       ]);
     }
 
     const lines = [
-      `No exact match for "${ruleId}". Did you mean one of these?`,
+      vscode.l10n.t(
+        'No exact match for "{0}". Did you mean one of these?',
+        ruleId,
+      ),
       "",
-      ...matches.map(
-        (id) =>
-          `- **${id}**: ${RULES[id].title} (WCAG ${RULES[id].wcagCriteria.join(", ")}, Level ${RULES[id].wcagLevel})`,
+      ...matches.map((id) =>
+        vscode.l10n.t(
+          "- **{0}**: {1} (WCAG {2}, Level {3})",
+          id,
+          vscode.l10n.t(RULES[id].title),
+          RULES[id].wcagCriteria.join(", "),
+          RULES[id].wcagLevel,
+        ),
       ),
     ];
     return new vscode.LanguageModelToolResult([

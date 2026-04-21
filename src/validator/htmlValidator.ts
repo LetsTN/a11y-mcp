@@ -1,3 +1,4 @@
+import * as vscode from "vscode";
 import * as cheerio from "cheerio";
 import type { AnyNode, Element } from "domhandler";
 import type { A11yIssue, ValidationResult } from "./types";
@@ -105,7 +106,7 @@ function checkImages(
     issues.push(
       makeIssue(
         "img_01b",
-        "img element is missing the required alt attribute.",
+        vscode.l10n.t("img element is missing the required alt attribute."),
         el as Element,
         $,
         html,
@@ -122,7 +123,10 @@ function checkImages(
       issues.push(
         makeIssue(
           "img_03",
-          `img alt="${alt}" is a filename or uninformative word. Describe the image meaning.`,
+          vscode.l10n.t(
+            'img alt="{0}" is a filename or uninformative word. Describe the image meaning.',
+            alt,
+          ),
           el as Element,
           $,
           html,
@@ -133,7 +137,10 @@ function checkImages(
       issues.push(
         makeIssue(
           "img_04",
-          `img alt text is ${alt.length} characters long (max recommended: 100).`,
+          vscode.l10n.t(
+            "img alt text is {0} characters long (max recommended: 100).",
+            alt.length,
+          ),
           el as Element,
           $,
           html,
@@ -151,7 +158,9 @@ function checkImages(
       issues.push(
         makeIssue(
           "img_02",
-          'Decorative img (alt="") should also have role="presentation" or aria-hidden="true".',
+          vscode.l10n.t(
+            'Decorative img (alt="") should also have role="presentation" or aria-hidden="true".',
+          ),
           el as Element,
           $,
           html,
@@ -173,7 +182,9 @@ function checkLinks(
       issues.push(
         makeIssue(
           "a_11",
-          "Anchor element has no accessible name (no text, aria-label, aria-labelledby, or title).",
+          vscode.l10n.t(
+            "Anchor element has no accessible name (no text, aria-label, aria-labelledby, or title).",
+          ),
           el as Element,
           $,
           html,
@@ -242,7 +253,7 @@ function checkButtons(
       issues.push(
         makeIssue(
           "button_02",
-          "button element has no accessible name.",
+          vscode.l10n.t("button element has no accessible name."),
           el as Element,
           $,
           html,
@@ -310,7 +321,10 @@ function checkForms(
       issues.push(
         makeIssue(
           "input_01",
-          `${el.name} element has no associated label, aria-label, aria-labelledby, or title.`,
+          vscode.l10n.t(
+            "{0} element has no associated label, aria-label, aria-labelledby, or title.",
+            el.name,
+          ),
           el as Element,
           $,
           html,
@@ -328,7 +342,11 @@ function checkForms(
         issues.push(
           makeIssue(
             "autocomplete_01",
-            `Input "${name}" collects personal data but has no autocomplete attribute. Expected: autocomplete="${expectedToken}".`,
+            vscode.l10n.t(
+              'Input "{0}" collects personal data but has no autocomplete attribute. Expected: autocomplete="{1}".',
+              name,
+              expectedToken,
+            ),
             el as Element,
             $,
             html,
@@ -345,7 +363,7 @@ function checkForms(
       issues.push(
         makeIssue(
           "label_02",
-          "label has an empty for attribute.",
+          vscode.l10n.t("label has an empty for attribute."),
           el as Element,
           $,
           html,
@@ -355,7 +373,10 @@ function checkForms(
       issues.push(
         makeIssue(
           "label_02",
-          `label for="${forVal}" does not reference any element with that id.`,
+          vscode.l10n.t(
+            'label for="{0}" does not reference any element with that id.',
+            forVal,
+          ),
           el as Element,
           $,
           html,
@@ -374,7 +395,7 @@ function checkForms(
       issues.push(
         makeIssue(
           "form_01b",
-          "form has no submit button.",
+          vscode.l10n.t("form has no submit button."),
           el as Element,
           $,
           html,
@@ -422,7 +443,7 @@ function checkHeadings(
       severity: RULES.hx_01c.severity,
       wcagCriteria: RULES.hx_01c.wcagCriteria,
       wcagLevel: RULES.hx_01c.wcagLevel,
-      message: "Page has no <h1> element.",
+      message: vscode.l10n.t("Page has no <h1> element."),
       element: "<body>",
       selector: "body",
       line: 1,
@@ -438,7 +459,10 @@ function checkHeadings(
       issues.push(
         makeIssue(
           "heading_04",
-          `Page has ${h1s.length} <h1> elements. Only one is allowed.`,
+          vscode.l10n.t(
+            "Page has {0} <h1> elements. Only one is allowed.",
+            h1s.length,
+          ),
           el,
           $,
           html,
@@ -451,7 +475,13 @@ function checkHeadings(
   headings.forEach((el) => {
     if (!getAccessibleName($, el)) {
       issues.push(
-        makeIssue("heading_02", `<${el.name}> element is empty.`, el, $, html),
+        makeIssue(
+          "heading_02",
+          vscode.l10n.t("<{0}> element is empty.", el.name),
+          el,
+          $,
+          html,
+        ),
       );
     }
   });
@@ -464,7 +494,11 @@ function checkHeadings(
       issues.push(
         makeIssue(
           "hx_03",
-          `Heading level skipped: <h${prevLevel}> followed by <h${level}>.`,
+          vscode.l10n.t(
+            "Heading level skipped: <h{0}> followed by <h{1}>.",
+            prevLevel,
+            level,
+          ),
           el,
           $,
           html,
@@ -491,7 +525,7 @@ function checkPage(
       severity: RULES.title_02.severity,
       wcagCriteria: RULES.title_02.wcagCriteria,
       wcagLevel: RULES.title_02.wcagLevel,
-      message: "Page is missing a <title> element.",
+      message: vscode.l10n.t("Page is missing a <title> element."),
       element: "<head>",
       selector: "head",
       line: 1,
@@ -505,7 +539,7 @@ function checkPage(
       severity: RULES.title_03.severity,
       wcagCriteria: RULES.title_03.wcagCriteria,
       wcagLevel: RULES.title_03.wcagLevel,
-      message: "<title> element is empty.",
+      message: vscode.l10n.t("<title> element is empty."),
       element: $.html($title) ?? "<title></title>",
       selector: "title",
       line: findLineInSource(html, "<title"),
@@ -524,7 +558,7 @@ function checkPage(
       severity: RULES.lang_03.severity,
       wcagCriteria: RULES.lang_03.wcagCriteria,
       wcagLevel: RULES.lang_03.wcagLevel,
-      message: "<html> element is missing the lang attribute.",
+      message: vscode.l10n.t("<html> element is missing the lang attribute."),
       element: snippet($, $html[0] as Element),
       selector: "html",
       line: 1,
@@ -538,7 +572,10 @@ function checkPage(
       severity: RULES.lang_02.severity,
       wcagCriteria: RULES.lang_02.wcagCriteria,
       wcagLevel: RULES.lang_02.wcagLevel,
-      message: `<html lang="${lang}"> is not a valid BCP 47 language tag.`,
+      message: vscode.l10n.t(
+        '<html lang="{0}"> is not a valid BCP 47 language tag.',
+        lang,
+      ),
       element: snippet($, $html[0] as Element),
       selector: "html",
       line: 1,
@@ -563,7 +600,7 @@ function checkLandmarks(
       severity: RULES.landmark_07.severity,
       wcagCriteria: RULES.landmark_07.wcagCriteria,
       wcagLevel: RULES.landmark_07.wcagLevel,
-      message: "Page has no <main> landmark.",
+      message: vscode.l10n.t("Page has no <main> landmark."),
       element: "<body>",
       selector: "body",
       line: 1,
@@ -579,7 +616,10 @@ function checkLandmarks(
         issues.push(
           makeIssue(
             "landmark_14",
-            `Page has ${mainCount} <main> / role="main" elements. Only one is allowed.`,
+            vscode.l10n.t(
+              'Page has {0} <main> / role="main" elements. Only one is allowed.',
+              mainCount,
+            ),
             el as Element,
             $,
             html,
@@ -601,8 +641,9 @@ function checkLandmarks(
         severity: RULES.a_02a.severity,
         wcagCriteria: RULES.a_02a.wcagCriteria,
         wcagLevel: RULES.a_02a.wcagLevel,
-        message:
+        message: vscode.l10n.t(
           "The first focusable element on the page is not a skip navigation link.",
+        ),
         element: snippet($, firstFocusable[0] as Element),
         selector: buildSelector(firstFocusable),
         line: getLocation(firstFocusable[0] as AnyNode).line,
@@ -631,7 +672,7 @@ function checkTables(
       issues.push(
         makeIssue(
           "table_05a",
-          "Data table has no <th> header cells.",
+          vscode.l10n.t("Data table has no <th> header cells."),
           el as Element,
           $,
           html,
@@ -642,7 +683,7 @@ function checkTables(
       issues.push(
         makeIssue(
           "table_02",
-          "Data table has no <caption> element.",
+          vscode.l10n.t("Data table has no <caption> element."),
           el as Element,
           $,
           html,
@@ -655,7 +696,7 @@ function checkTables(
       issues.push(
         makeIssue(
           "table_04",
-          "Table nested inside another table.",
+          vscode.l10n.t("Table nested inside another table."),
           nested as Element,
           $,
           html,
@@ -674,7 +715,7 @@ function checkFrames(
     issues.push(
       makeIssue(
         "iframe_01",
-        "iframe element has no title attribute.",
+        vscode.l10n.t("iframe element has no title attribute."),
         el as Element,
         $,
         html,
@@ -700,7 +741,9 @@ function checkSvg(
       issues.push(
         makeIssue(
           "svg_02",
-          "svg element has no accessible name (no <title>, aria-label, or aria-labelledby).",
+          vscode.l10n.t(
+            "svg element has no accessible name (no <title>, aria-label, or aria-labelledby).",
+          ),
           el as Element,
           $,
           html,
@@ -873,7 +916,7 @@ function checkAria(
         issues.push(
           makeIssue(
             "aria_01",
-            `role="${role}" is not a valid WAI-ARIA role.`,
+            vscode.l10n.t('role="{0}" is not a valid WAI-ARIA role.', role),
             el as Element,
             $,
             html,
@@ -887,7 +930,11 @@ function checkAria(
             issues.push(
               makeIssue(
                 "aria_02",
-                `role="${role}" requires the "${req}" attribute.`,
+                vscode.l10n.t(
+                  'role="{0}" requires the "{1}" attribute.',
+                  role,
+                  req,
+                ),
                 el as Element,
                 $,
                 html,
@@ -907,7 +954,7 @@ function checkAria(
         issues.push(
           makeIssue(
             "aria_07",
-            `Unknown ARIA attribute: ${attr}.`,
+            vscode.l10n.t("Unknown ARIA attribute: {0}.", attr),
             el as Element,
             $,
             html,
@@ -935,7 +982,7 @@ function checkIds(
       issues.push(
         makeIssue(
           "id_02",
-          `Duplicate id="${id}" found on multiple elements.`,
+          vscode.l10n.t('Duplicate id="{0}" found on multiple elements.', id),
           el as Element,
           $,
           html,
@@ -960,7 +1007,10 @@ function checkMeta(
       issues.push(
         makeIssue(
           "meta_05",
-          `<meta name="viewport" content="${content}"> prevents user zoom.`,
+          vscode.l10n.t(
+            '<meta name="viewport" content="{0}"> prevents user zoom.',
+            content,
+          ),
           el as Element,
           $,
           html,
@@ -974,7 +1024,9 @@ function checkMeta(
     issues.push(
       makeIssue(
         "meta_01",
-        'Page uses <meta http-equiv="refresh"> for automatic reload or redirect.',
+        vscode.l10n.t(
+          'Page uses <meta http-equiv="refresh"> for automatic reload or redirect.',
+        ),
         el as Element,
         $,
         html,
@@ -1006,7 +1058,7 @@ function checkObsoleteElements(
       issues.push(
         makeIssue(
           "layout_01a",
-          `Obsolete presentational element <${tag}> used.`,
+          vscode.l10n.t("Obsolete presentational element <{0}> used.", tag),
           el as Element,
           $,
           html,
@@ -1028,7 +1080,10 @@ function checkObsoleteElements(
       issues.push(
         makeIssue(
           "font_01",
-          `<${(el as Element).name}> used for styling; prefer <strong> or <em> for semantic meaning.`,
+          vscode.l10n.t(
+            "<{0}> used for styling; prefer <strong> or <em> for semantic meaning.",
+            (el as Element).name,
+          ),
           el as Element,
           $,
           html,
@@ -1051,7 +1106,10 @@ function checkMedia(
       issues.push(
         makeIssue(
           "audio_video_01",
-          `<${(el as Element).name}> element is missing the controls attribute.`,
+          vscode.l10n.t(
+            "<{0}> element is missing the controls attribute.",
+            (el as Element).name,
+          ),
           el as Element,
           $,
           html,
@@ -1073,7 +1131,9 @@ function checkEventHandlers(
     issues.push(
       makeIssue(
         "ehandler_04",
-        `Element has mouse event handler but no equivalent keyboard (focus/blur) handler.`,
+        vscode.l10n.t(
+          "Element has mouse event handler but no equivalent keyboard (focus/blur) handler.",
+        ),
         el as Element,
         $,
         html,
@@ -1088,7 +1148,10 @@ function checkEventHandlers(
       issues.push(
         makeIssue(
           "element_01",
-          `tabindex="${val}" > 0 creates an unpredictable tab order.`,
+          vscode.l10n.t(
+            'tabindex="{0}" > 0 creates an unpredictable tab order.',
+            val,
+          ),
           el as Element,
           $,
           html,
@@ -1139,7 +1202,11 @@ function checkEventHandlers(
         issues.push(
           makeIssue(
             "role_02",
-            `<${tag} role="${role}"> is missing tabindex="0" and/or keyboard event handler.`,
+            vscode.l10n.t(
+              '<{0} role="{1}"> is missing tabindex="0" and/or keyboard event handler.',
+              tag,
+              role,
+            ),
             el as Element,
             $,
             html,
@@ -1161,7 +1228,9 @@ function checkLists(
       issues.push(
         makeIssue(
           "listitem_02",
-          "<li> element is not inside a <ul>, <ol>, or <menu> parent.",
+          vscode.l10n.t(
+            "<li> element is not inside a <ul>, <ol>, or <menu> parent.",
+          ),
           el as Element,
           $,
           html,

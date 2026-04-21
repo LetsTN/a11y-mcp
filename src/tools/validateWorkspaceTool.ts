@@ -30,7 +30,9 @@ export class ValidateWorkspaceTool implements vscode.LanguageModelTool<ValidateW
 
     if (!workspaceRoot) {
       return new vscode.LanguageModelToolResult([
-        new vscode.LanguageModelTextPart("Error: No workspace folder is open."),
+        new vscode.LanguageModelTextPart(
+          vscode.l10n.t("Error: No workspace folder is open."),
+        ),
       ]);
     }
 
@@ -41,7 +43,7 @@ export class ValidateWorkspaceTool implements vscode.LanguageModelTool<ValidateW
     if (!fs.existsSync(scanRoot)) {
       return new vscode.LanguageModelToolResult([
         new vscode.LanguageModelTextPart(
-          `Error: Folder not found: ${scanRoot}`,
+          vscode.l10n.t("Error: Folder not found: {0}", scanRoot),
         ),
       ]);
     }
@@ -51,7 +53,9 @@ export class ValidateWorkspaceTool implements vscode.LanguageModelTool<ValidateW
     if (files.length === 0) {
       return new vscode.LanguageModelToolResult([
         new vscode.LanguageModelTextPart(
-          "No supported HTML/JSX/TSX files found in the specified location.",
+          vscode.l10n.t(
+            "No supported HTML/JSX/TSX files found in the specified location.",
+          ),
         ),
       ]);
     }
@@ -133,24 +137,31 @@ function formatWorkspaceResult(
   workspaceRoot: string,
 ): string {
   const lines: string[] = [
-    "## Workspace Accessibility Report",
+    vscode.l10n.t("## Workspace Accessibility Report"),
     "",
-    `**Scanned:** ${summary.totalFiles} file(s)`,
-    `**Files with issues:** ${summary.filesWithIssues}`,
-    `**Total issues:** ${summary.totalErrors + summary.totalWarnings + summary.totalNotices}`,
-    `  - 🔴 Errors: ${summary.totalErrors}`,
-    `  - 🟡 Warnings: ${summary.totalWarnings}`,
-    `  - 🔵 Notices: ${summary.totalNotices}`,
+    vscode.l10n.t("**Scanned:** {0} file(s)", summary.totalFiles),
+    vscode.l10n.t("**Files with issues:** {0}", summary.filesWithIssues),
+    vscode.l10n.t(
+      "**Total issues:** {0}",
+      summary.totalErrors + summary.totalWarnings + summary.totalNotices,
+    ),
+    vscode.l10n.t("  - \ud83d\udd34 Errors: {0}", summary.totalErrors),
+    vscode.l10n.t("  - \ud83d\udfe1 Warnings: {0}", summary.totalWarnings),
+    vscode.l10n.t("  - \ud83d\udd35 Notices: {0}", summary.totalNotices),
     "",
   ];
 
   const filesWithIssues = summary.results.filter((r) => r.issues.length > 0);
   if (filesWithIssues.length === 0) {
-    lines.push("✅ No accessibility issues found across all scanned files.");
+    lines.push(
+      vscode.l10n.t(
+        "✅ No accessibility issues found across all scanned files.",
+      ),
+    );
     return lines.join("\n");
   }
 
-  lines.push("### Files with issues");
+  lines.push(vscode.l10n.t("### Files with issues"));
   lines.push("");
 
   for (const result of filesWithIssues) {
@@ -167,12 +178,12 @@ function formatWorkspaceResult(
             ? "🟡"
             : "🔵";
       lines.push(
-        `${icon} **[${issue.ruleId}]** Line ${issue.line}: ${issue.message}`,
+        `${icon} ${vscode.l10n.t("**[{0}]** Line {1}: {2}", issue.ruleId, issue.line, issue.message)}`,
       );
     }
     if (result.issues.length > 15) {
       lines.push(
-        `  _…and ${result.issues.length - 15} more. Run \`a11y_validate_file\` on this file for the full list._`,
+        `  _${vscode.l10n.t("…and {0} more. Run \`a11y_validate_file\` on this file for the full list.", result.issues.length - 15)}_`,
       );
     }
     lines.push("");

@@ -27,7 +27,7 @@ export class ValidateFileTool implements vscode.LanguageModelTool<ValidateFileIn
     if (!fs.existsSync(resolvedPath)) {
       return new vscode.LanguageModelToolResult([
         new vscode.LanguageModelTextPart(
-          `Error: File not found: ${resolvedPath}`,
+          vscode.l10n.t("Error: File not found: {0}", resolvedPath),
         ),
       ]);
     }
@@ -44,14 +44,20 @@ export class ValidateFileTool implements vscode.LanguageModelTool<ValidateFileIn
 function formatValidationResult(result: ValidationResult): string {
   const { filePath, issues, stats } = result;
   const lines: string[] = [
-    `## Accessibility Validation: ${path.basename(filePath)}`,
+    vscode.l10n.t("## Accessibility Validation: {0}", path.basename(filePath)),
     "",
-    `**Summary:** ${stats.total} issue(s) — ${stats.errors} error(s), ${stats.warnings} warning(s), ${stats.notices} notice(s)`,
+    vscode.l10n.t(
+      "**Summary:** {0} issue(s) — {1} error(s), {2} warning(s), {3} notice(s)",
+      stats.total,
+      stats.errors,
+      stats.warnings,
+      stats.notices,
+    ),
     "",
   ];
 
   if (issues.length === 0) {
-    lines.push("✅ No accessibility issues found.");
+    lines.push(vscode.l10n.t("✅ No accessibility issues found."));
     return lines.join("\n");
   }
 
@@ -65,18 +71,33 @@ function formatValidationResult(result: ValidationResult): string {
     if (list.length === 0) continue;
     const icon =
       severity === "error" ? "🔴" : severity === "warning" ? "🟡" : "🔵";
-    lines.push(
-      `### ${icon} ${severity.charAt(0).toUpperCase() + severity.slice(1)}s (${list.length})`,
-    );
+    const severityLabel =
+      severity === "error"
+        ? vscode.l10n.t("Errors")
+        : severity === "warning"
+          ? vscode.l10n.t("Warnings")
+          : vscode.l10n.t("Notices");
+    lines.push(`### ${icon} ${severityLabel} (${list.length})`);
     lines.push("");
     for (const issue of list) {
-      lines.push(`**[${issue.ruleId}]** Line ${issue.line}: ${issue.message}`);
       lines.push(
-        `- WCAG: ${issue.wcagCriteria.join(", ")} (Level ${issue.wcagLevel})`,
+        vscode.l10n.t(
+          "**[{0}]** Line {1}: {2}",
+          issue.ruleId,
+          issue.line,
+          issue.message,
+        ),
       );
-      lines.push(`- Element: \`${issue.element}\``);
-      lines.push(`- Fix: ${issue.fix}`);
-      lines.push(`- Reference: ${issue.helpUrl}`);
+      lines.push(
+        vscode.l10n.t(
+          "- WCAG: {0} (Level {1})",
+          issue.wcagCriteria.join(", "),
+          issue.wcagLevel,
+        ),
+      );
+      lines.push(vscode.l10n.t("- Element: `{0}`", issue.element));
+      lines.push(vscode.l10n.t("- Fix: {0}", vscode.l10n.t(issue.fix)));
+      lines.push(vscode.l10n.t("- Reference: {0}", issue.helpUrl));
       lines.push("");
     }
   }

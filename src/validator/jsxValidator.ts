@@ -1,3 +1,4 @@
+import * as vscode from "vscode";
 import { parse } from "@babel/parser";
 import type { A11yIssue, ValidationResult } from "./types";
 import { RULES } from "./rules";
@@ -209,7 +210,11 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
     const altAttr = attrs.get("alt");
     if (!altAttr) {
       issues.push(
-        makeIssue("img_01b", "<img> is missing the required alt prop.", el),
+        makeIssue(
+          "img_01b",
+          vscode.l10n.t("<img> is missing the required alt prop."),
+          el,
+        ),
       );
     } else {
       const altVal = getAttrString(altAttr);
@@ -221,7 +226,10 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
           issues.push(
             makeIssue(
               "img_03",
-              `<img alt="${altVal}"> has an uninformative alt value.`,
+              vscode.l10n.t(
+                '<img alt="{0}"> has an uninformative alt value.',
+                altVal,
+              ),
               el,
             ),
           );
@@ -230,7 +238,10 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
           issues.push(
             makeIssue(
               "img_04",
-              `<img> alt text is ${altVal.length} characters (max recommended: 100).`,
+              vscode.l10n.t(
+                "<img> alt text is {0} characters (max recommended: 100).",
+                altVal.length,
+              ),
               el,
             ),
           );
@@ -246,7 +257,9 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
       issues.push(
         makeIssue(
           "a_11",
-          "<a> element has no accessible name (no children, aria-label, or title).",
+          vscode.l10n.t(
+            "<a> element has no accessible name (no children, aria-label, or title).",
+          ),
           el,
         ),
       );
@@ -258,7 +271,11 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
     const result = hasAccessibleName(el);
     if (result === "no") {
       issues.push(
-        makeIssue("button_02", "<button> element has no accessible name.", el),
+        makeIssue(
+          "button_02",
+          vscode.l10n.t("<button> element has no accessible name."),
+          el,
+        ),
       );
     }
   }
@@ -297,7 +314,10 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
         issues.push(
           makeIssue(
             "input_01",
-            `<input type="${typeAttr}"> has no id (for <label htmlFor>), aria-label, aria-labelledby, or title.`,
+            vscode.l10n.t(
+              '<input type="{0}"> has no id (for <label htmlFor>), aria-label, aria-labelledby, or title.',
+              typeAttr,
+            ),
             el,
           ),
         );
@@ -317,7 +337,9 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
       issues.push(
         makeIssue(
           "input_01",
-          "<select> has no id (for <label htmlFor>), aria-label, or aria-labelledby.",
+          vscode.l10n.t(
+            "<select> has no id (for <label htmlFor>), aria-label, or aria-labelledby.",
+          ),
           el,
         ),
       );
@@ -336,7 +358,9 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
       issues.push(
         makeIssue(
           "input_01",
-          "<textarea> has no id (for <label htmlFor>), aria-label, or aria-labelledby.",
+          vscode.l10n.t(
+            "<textarea> has no id (for <label htmlFor>), aria-label, or aria-labelledby.",
+          ),
           el,
         ),
       );
@@ -349,7 +373,11 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
     const titleVal = getAttrString(titleAttr);
     if (!titleAttr || (titleVal !== null && !titleVal.trim())) {
       issues.push(
-        makeIssue("iframe_01", "<iframe> is missing a title prop.", el),
+        makeIssue(
+          "iframe_01",
+          vscode.l10n.t("<iframe> is missing a title prop."),
+          el,
+        ),
       );
     }
   }
@@ -375,7 +403,9 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
         issues.push(
           makeIssue(
             "svg_02",
-            '<svg> has no accessible name. Add aria-hidden="true" if decorative, or aria-label / a <title> child if meaningful.',
+            vscode.l10n.t(
+              '<svg> has no accessible name. Add aria-hidden="true" if decorative, or aria-label / a <title> child if meaningful.',
+            ),
             el,
           ),
         );
@@ -391,7 +421,10 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
       issues.push(
         makeIssue(
           "element_01",
-          `tabIndex="${val}" > 0 creates an unpredictable tab order.`,
+          vscode.l10n.t(
+            'tabIndex="{0}" > 0 creates an unpredictable tab order.',
+            val,
+          ),
           el,
         ),
       );
@@ -424,7 +457,10 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
       issues.push(
         makeIssue(
           "jsx_onclick_div",
-          `<${tag}> has onClick but no role, tabIndex, or keyboard handler. Keyboard users cannot interact with it.`,
+          vscode.l10n.t(
+            "<{0}> has onClick but no role, tabIndex, or keyboard handler. Keyboard users cannot interact with it.",
+            tag,
+          ),
           el,
         ),
       );
@@ -436,7 +472,10 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
     issues.push(
       makeIssue(
         "ehandler_04",
-        `<${tag}> has onMouseOver without onFocus. Keyboard users cannot trigger this interaction.`,
+        vscode.l10n.t(
+          "<{0}> has onMouseOver without onFocus. Keyboard users cannot trigger this interaction.",
+          tag,
+        ),
         el,
       ),
     );
@@ -445,7 +484,10 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
     issues.push(
       makeIssue(
         "ehandler_04",
-        `<${tag}> has onMouseOut without onBlur. Keyboard users cannot trigger this interaction.`,
+        vscode.l10n.t(
+          "<{0}> has onMouseOut without onBlur. Keyboard users cannot trigger this interaction.",
+          tag,
+        ),
         el,
       ),
     );
@@ -544,7 +586,7 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
           issues.push(
             makeIssue(
               "aria_01",
-              `role="${r}" is not a valid WAI-ARIA role.`,
+              vscode.l10n.t('role="{0}" is not a valid WAI-ARIA role.', r),
               el,
             ),
           );

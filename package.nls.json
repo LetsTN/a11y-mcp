@@ -1,0 +1,21 @@
+{
+  "extension.displayName": "A11y MCP — Accessibility Validator",
+  "extension.description": "Validates WCAG 2.2 (AAA) accessibility in HTML, JSX and TSX files using AccessMonitor rules. Shows diagnostics in the Problems panel and exposes tools for GitHub Copilot (MCP).",
+  "command.validateFile.title": "A11y: Validate Current File",
+  "command.validateWorkspace.title": "A11y: Validate Workspace",
+  "command.category": "Accessibility",
+  "config.title": "A11y MCP",
+  "config.wcagLevel.description": "Minimum WCAG conformance level to enforce.",
+  "config.include.description": "Glob patterns for files to validate.",
+  "config.exclude.description": "Glob patterns for files to exclude from validation.",
+  "tool.validateFile.displayName": "Validate File Accessibility",
+  "tool.validateFile.modelDescription": "Validates accessibility issues in an HTML, JSX, or TSX file based on WCAG 2.2 (AAA) and AccessMonitor rules. Returns a list of violations with rule ID, WCAG criterion, severity (error/warning/notice), the offending element, line number, and a fix suggestion. Use this when you need to audit a specific file for accessibility problems.",
+  "tool.validateFile.input.filePath": "Absolute or workspace-relative path to the HTML, JSX, or TSX file to validate.",
+  "tool.validateWorkspace.displayName": "Validate Workspace Accessibility",
+  "tool.validateWorkspace.modelDescription": "Scans all HTML, JSX, and TSX files in the workspace (or a specific sub-folder) for WCAG 2.2 accessibility violations. Returns a summary with total counts per severity and a per-file breakdown. Use this to get an overall picture of accessibility health across a project.",
+  "tool.validateWorkspace.input.folder": "Optional workspace-relative folder to limit the scan scope. Defaults to the entire workspace root.",
+  "tool.validateWorkspace.input.maxFiles": "Maximum number of files to scan. Defaults to 100.",
+  "tool.getRule.displayName": "Get Accessibility Rule Details",
+  "tool.getRule.modelDescription": "Returns the full definition of a specific WCAG or AccessMonitor accessibility rule: its description, affected WCAG success criterion, conformance level, default severity, fix guidance, and reference URL. Use this to explain a rule to the user or to get more context before fixing a violation.",
+  "tool.getRule.input.ruleId": "The rule ID to look up, e.g. 'img_01b', 'title_02', 'aria_01', 'hx_03'."
+}

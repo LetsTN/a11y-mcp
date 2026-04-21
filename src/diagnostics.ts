@@ -85,7 +85,12 @@ export class A11yDiagnosticsProvider {
           vscode.Uri.parse(issue.helpUrl),
           new vscode.Range(0, 0, 0, 0),
         ),
-        `WCAG ${issue.wcagCriteria.join(", ")} (Level ${issue.wcagLevel}) — ${issue.fix}`,
+        vscode.l10n.t(
+          "WCAG {0} (Level {1}) — {2}",
+          issue.wcagCriteria.join(", "),
+          issue.wcagLevel,
+          vscode.l10n.t(issue.fix),
+        ),
       ),
     ];
 

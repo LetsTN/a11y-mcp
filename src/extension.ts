@@ -53,13 +53,15 @@ export function activate(context: vscode.ExtensionContext): void {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
         vscode.window.showWarningMessage(
-          "A11y MCP: No active file to validate.",
+          vscode.l10n.t("A11y MCP: No active file to validate."),
         );
         return;
       }
       if (!isSupported(editor.document)) {
         vscode.window.showWarningMessage(
-          "A11y MCP: Current file type is not supported. Open an HTML, JSX, or TSX file.",
+          vscode.l10n.t(
+            "A11y MCP: Current file type is not supported. Open an HTML, JSX, or TSX file.",
+          ),
         );
         return;
       }
@@ -71,22 +73,29 @@ export function activate(context: vscode.ExtensionContext): void {
       const { stats } = result;
       const msg =
         stats.total === 0
-          ? "✅ No accessibility issues found."
-          : `Found ${stats.errors} error(s), ${stats.warnings} warning(s), ${stats.notices} notice(s). See the Problems panel for details.`;
+          ? vscode.l10n.t("✅ No accessibility issues found.")
+          : vscode.l10n.t(
+              "Found {0} error(s), {1} warning(s), {2} notice(s). See the Problems panel for details.",
+              stats.errors,
+              stats.warnings,
+              stats.notices,
+            );
       vscode.window.showInformationMessage(`A11y MCP: ${msg}`);
     }),
 
     vscode.commands.registerCommand("a11y-mcp.validateWorkspace", async () => {
       const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
       if (!workspaceRoot) {
-        vscode.window.showWarningMessage("A11y MCP: No workspace folder open.");
+        vscode.window.showWarningMessage(
+          vscode.l10n.t("A11y MCP: No workspace folder open."),
+        );
         return;
       }
 
       await vscode.window.withProgress(
         {
           location: vscode.ProgressLocation.Notification,
-          title: "A11y MCP: Validating workspace…",
+          title: vscode.l10n.t("A11y MCP: Validating workspace…"),
           cancellable: true,
         },
         async (progress, token) => {
@@ -98,7 +107,7 @@ export function activate(context: vscode.ExtensionContext): void {
           for (let i = 0; i < files.length; i++) {
             if (token.isCancellationRequested) break;
             progress.report({
-              message: `${i + 1}/${files.length} files`,
+              message: vscode.l10n.t("{0}/{1} files", i + 1, files.length),
               increment: (1 / files.length) * 100,
             });
 
@@ -119,8 +128,17 @@ export function activate(context: vscode.ExtensionContext): void {
           const total = totalErrors + totalWarnings + totalNotices;
           const msg =
             total === 0
-              ? `✅ All ${files.length} file(s) passed accessibility checks.`
-              : `Scanned ${files.length} file(s): ${totalErrors} error(s), ${totalWarnings} warning(s), ${totalNotices} notice(s). See Problems panel.`;
+              ? vscode.l10n.t(
+                  "✅ All {0} file(s) passed accessibility checks.",
+                  files.length,
+                )
+              : vscode.l10n.t(
+                  "Scanned {0} file(s): {1} error(s), {2} warning(s), {3} notice(s). See Problems panel.",
+                  files.length,
+                  totalErrors,
+                  totalWarnings,
+                  totalNotices,
+                );
           vscode.window.showInformationMessage(`A11y MCP: ${msg}`);
         },
       );
