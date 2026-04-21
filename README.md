@@ -19,10 +19,9 @@ Os problemas aparecem instantaneamente no **painel de Problemas** (e como sublin
 Peça ao Copilot Chat para auditar seus arquivos ou explicar qualquer regra:
 
 | Ferramenta                | O que faz                                                                                          |
-| ------------------------- | -------------------------------------------------------------------------------------------------- |
+| ------------------------- | -------------------------------------------------------------------------------------------------- | --- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- | --------------- | ----------------------------------------------------------------------- |
 | `a11y_validate_file`      | Relatório completo de um único arquivo — linha, regra, critério WCAG, severidade e sugestão de fix |
-| `a11y_validate_workspace` | Varre todos os arquivos HTML/JSX/TSX e retorna um resumo geral                                     |
-| `a11y_get_rule`           | Explica qualquer regra em detalhes (ex.: `img_01b`, `hx_03`, `aria_02`)                            |
+| `a11y_validate_workspace` | Varre todos os arquivos HTML/JSX/TSX e retorna um resumo geral                                     |     | `a11y_validate_url` | Busca o HTML de uma URL em execução (ex: `http://localhost:3000`) e valida a acessibilidade. Ideal para apps SSR (Next.js, Remix). Para SPAs CSR (Vite, CRA) exibe um aviso pois o servidor retorna apenas o esqueleto vazio. |     | `a11y_get_rule` | Explica qualquer regra em detalhes (ex.: `img_01b`, `hx_03`, `aria_02`) |
 
 **Exemplos de prompts:**
 

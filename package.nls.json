@@ -17,5 +17,8 @@
   "tool.validateWorkspace.input.maxFiles": "Maximum number of files to scan. Defaults to 100.",
   "tool.getRule.displayName": "Get Accessibility Rule Details",
   "tool.getRule.modelDescription": "Returns the full definition of a specific WCAG or AccessMonitor accessibility rule: its description, affected WCAG success criterion, conformance level, default severity, fix guidance, and reference URL. Use this to explain a rule to the user or to get more context before fixing a violation.",
-  "tool.getRule.input.ruleId": "The rule ID to look up, e.g. 'img_01b', 'title_02', 'aria_01', 'hx_03'."
+  "tool.getRule.input.ruleId": "The rule ID to look up, e.g. 'img_01b', 'title_02', 'aria_01', 'hx_03'.",
+  "tool.validateUrl.displayName": "Validate URL Accessibility",
+  "tool.validateUrl.modelDescription": "Fetches the HTML from a running local or remote server and validates it for WCAG 2.2 accessibility issues. Works best with server-side rendered pages (Next.js, Remix, Nuxt). For client-side rendered SPAs (Vite, CRA) the server returns an empty shell, so results will be limited — a warning is shown in that case. Use this when the project is already running (e.g. after npm run dev) and you want to validate the rendered output.",
+  "tool.validateUrl.input.url": "Full URL to fetch and validate, e.g. http://localhost:3000 or http://localhost:5173/about."
 }

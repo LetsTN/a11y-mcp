@@ -243,5 +243,11 @@
   "{0}/{1} files": "{0}/{1} arquivos",
   "✅ All {0} file(s) passed accessibility checks.": "✅ Todos os {0} arquivo(s) passaram nas verificações de acessibilidade.",
   "Scanned {0} file(s): {1} error(s), {2} warning(s), {3} notice(s). See Problems panel.": "Verificado(s) {0} arquivo(s): {1} erro(s), {2} aviso(s), {3} nota(s). Veja o painel Problemas.",
-  "WCAG {0} (Level {1}) — {2}": "WCAG {0} (Nível {1}) — {2}"
+  "WCAG {0} (Level {1}) — {2}": "WCAG {0} (Nível {1}) — {2}",
+
+  "// ─── validateUrlTool strings ─────────────────────────────────────────────": "",
+  "Error: Invalid URL: {0}": "Erro: URL inválida: {0}",
+  "Error: Only http:// and https:// URLs are supported.": "Erro: Apenas URLs http:// e https:// são suportadas.",
+  "Error: Could not fetch {0} — {1}": "Erro: Não foi possível acessar {0} — {1}",
+  "⚠️ **CSR detected:** This page appears to be a Client-Side Rendered (SPA) application. The HTML returned by the server is mostly empty — the real content is injected by JavaScript at runtime in the browser. **The validation below only covers the static HTML shell and will miss most issues.** For accurate results, use a server-side rendered framework (Next.js, Remix, Nuxt) or validate your source `.jsx`/`.tsx` files directly.": "⚠️ **CSR detectado:** Esta página parece ser uma aplicação renderizada no cliente (SPA). O HTML retornado pelo servidor está quase vazio — o conteúdo real é injetado pelo JavaScript no navegador em tempo de execução. **A validação abaixo cobre apenas o esqueleto HTML estático e vai perder a maioria dos problemas.** Para resultados precisos, use um framework com renderização no servidor (Next.js, Remix, Nuxt) ou valide seus arquivos `.jsx`/`.tsx` diretamente."
 }

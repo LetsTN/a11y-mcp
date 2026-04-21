@@ -5,6 +5,7 @@ import { A11yDiagnosticsProvider } from "./diagnostics";
 import { ValidateFileTool } from "./tools/validateFileTool";
 import { ValidateWorkspaceTool } from "./tools/validateWorkspaceTool";
 import { GetRuleTool } from "./tools/getRuleTool";
+import { ValidateUrlTool } from "./tools/validateUrlTool";
 import { validateContent, SUPPORTED_EXTENSIONS } from "./validator";
 
 const SUPPORTED_LANGUAGES = new Set([
@@ -27,6 +28,7 @@ export function activate(context: vscode.ExtensionContext): void {
       new ValidateWorkspaceTool(),
     ),
     vscode.lm.registerTool("a11y_get_rule", new GetRuleTool()),
+    vscode.lm.registerTool("a11y_validate_url", new ValidateUrlTool()),
   );
 
   // ── Diagnostics on document open / change / save ────────────────────────
