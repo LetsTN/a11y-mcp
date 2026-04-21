@@ -1,5 +1,6 @@
 .vscode/**
 .vscode-test/**
+.github/**
 out/**
 node_modules/**
 .gitignore
@@ -9,3 +10,4 @@ node_modules/**
 tsconfig.json
 esbuild.js
 src/**
+images/icon.svg

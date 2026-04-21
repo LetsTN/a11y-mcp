@@ -1,23 +1,41 @@
 {
   "name": "a11y-mcp",
   "displayName": "A11y MCP — Accessibility Validator",
-  "description": "Validates web accessibility (WCAG 2.2 / AccessMonitor rules) in HTML, JSX and TSX files. Exposes MCP tools for GitHub Copilot.",
+  "description": "Validates WCAG 2.2 (AAA) accessibility in HTML, JSX and TSX files using AccessMonitor rules. Shows diagnostics in the Problems panel and exposes tools for GitHub Copilot (MCP).",
   "version": "0.1.0",
-  "publisher": "a11y-mcp",
+  "publisher": "LetsTN",
   "license": "MIT",
+  "icon": "images/icon.png",
+  "galleryBanner": {
+    "color": "#1a1a2e",
+    "theme": "dark"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LetsTN/a11y-mcp"
+  },
+  "homepage": "https://github.com/LetsTN/a11y-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/LetsTN/a11y-mcp/issues"
+  },
   "engines": {
     "vscode": "^1.95.0"
   },
   "categories": [
-    "Linters"
+    "Linters",
+    "Other"
   ],
   "keywords": [
     "accessibility",
     "a11y",
     "wcag",
+    "wcag22",
+    "accessmonitor",
     "html",
     "jsx",
-    "mcp"
+    "tsx",
+    "mcp",
+    "copilot"
   ],
   "activationEvents": [
     "onLanguage:html",
@@ -166,7 +184,9 @@
     "watch": "node esbuild.js --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "package": "vsce package --no-dependencies"
+    "package": "vsce package --no-dependencies",
+    "publish:ovsx": "ovsx publish *.vsix -p $OVSX_PAT",
+    "publish:vsce": "vsce publish --no-dependencies"
   },
   "dependencies": {
     "@babel/parser": "^7.26.0",
@@ -177,6 +197,7 @@
     "@types/vscode": "^1.95.0",
     "@vscode/vsce": "^2.32.0",
     "esbuild": "^0.24.0",
+    "ovsx": "^0.9.5",
     "typescript": "^5.7.0"
   }
 }
