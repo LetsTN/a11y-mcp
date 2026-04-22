@@ -1,0 +1,30 @@
+{
+  "components": {
+    "Button": {
+      "as": "button"
+    },
+    "IconButton": {
+      "as": "button",
+      "propMap": {
+        "aria-label": "ariaLabel"
+      }
+    },
+    "Link": {
+      "as": "a",
+      "propMap": {
+        "href": "to"
+      }
+    },
+    "Image": {
+      "as": "img"
+    },
+    "TextField": {
+      "as": "input",
+      "propMap": {
+        "aria-label": "label",
+        "id": "id",
+        "type": "type"
+      }
+    }
+  }
+}

@@ -47,3 +47,17 @@ export interface WorkspaceValidationResult {
   totalNotices: number;
   results: ValidationResult[];
 }
+
+// ─── Component mapping (for React / library validation) ──────────────────────
+
+export interface ComponentMapping {
+  /** Native HTML element this component renders as (e.g. "button", "a", "img") */
+  as: string;
+  /** Maps standard HTML attribute names to the component's prop names.
+   *  Example: { "aria-label": "ariaLabel", "href": "to" }
+   *  Unmapped attributes are looked up by their standard name. */
+  propMap?: Record<string, string>;
+}
+
+/** Map of React/library component names to their HTML element semantics. */
+export type ComponentMap = Record<string, ComponentMapping>;

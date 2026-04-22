@@ -1,8 +1,9 @@
 import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
-import { validateContent, SUPPORTED_EXTENSIONS } from "../validator";
+import { validateContent } from "../validator";
 import type { ValidationResult, WorkspaceValidationResult } from "../validator";
+import { collectWorkspaceFiles } from "../utils";
 
 export interface ValidateWorkspaceInput {
   folder?: string;
@@ -10,15 +11,6 @@ export interface ValidateWorkspaceInput {
 }
 
 const DEFAULT_MAX_FILES = 100;
-const EXCLUDE_PATTERNS = [
-  "**/node_modules/**",
-  "**/dist/**",
-  "**/build/**",
-  "**/.git/**",
-  "**/out/**",
-  "**/.next/**",
-  "**/coverage/**",
-];
 
 export class ValidateWorkspaceTool implements vscode.LanguageModelTool<ValidateWorkspaceInput> {
   async invoke(
@@ -48,7 +40,7 @@ export class ValidateWorkspaceTool implements vscode.LanguageModelTool<ValidateW
       ]);
     }
 
-    const files = collectFiles(scanRoot, maxFiles);
+    const files = await collectWorkspaceFiles(scanRoot, maxFiles);
 
     if (files.length === 0) {
       return new vscode.LanguageModelToolResult([
@@ -86,50 +78,6 @@ export class ValidateWorkspaceTool implements vscode.LanguageModelTool<ValidateW
       ),
     ]);
   }
-}
-
-function collectFiles(dir: string, max: number): string[] {
-  const result: string[] = [];
-
-  function walk(current: string): void {
-    if (result.length >= max) return;
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (result.length >= max) return;
-      const fullPath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (shouldExcludeDir(entry.name)) continue;
-        walk(fullPath);
-      } else if (entry.isFile()) {
-        const ext = path.extname(entry.name).toLowerCase();
-        if (SUPPORTED_EXTENSIONS.has(ext)) {
-          result.push(fullPath);
-        }
-      }
-    }
-  }
-
-  walk(dir);
-  return result;
-}
-
-function shouldExcludeDir(name: string): boolean {
-  return [
-    "node_modules",
-    "dist",
-    "build",
-    ".git",
-    "out",
-    ".next",
-    "coverage",
-    ".cache",
-    "vendor",
-  ].includes(name);
 }
 
 function formatWorkspaceResult(

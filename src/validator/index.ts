@@ -3,6 +3,12 @@ import * as fs from "fs";
 import type { ValidationResult } from "./types";
 import { validateHtml } from "./htmlValidator";
 import { validateJsx } from "./jsxValidator";
+import {
+  getWcagLevel,
+  filterByWcagLevel,
+  computeStats,
+  loadComponentMap,
+} from "../utils";
 
 export { validateHtml } from "./htmlValidator";
 export { validateJsx } from "./jsxValidator";
@@ -35,14 +41,23 @@ export async function validateFile(
   return validateContent(content, filePath);
 }
 
-/** Validate raw content. The filePath extension determines which validator is used. */
+/** Validate raw content. The filePath extension determines which validator is used.
+ *  Results are filtered by the configured WCAG level.
+ *  For JSX/TSX, loads the component map from `.a11y-mcp.json` automatically. */
 export function validateContent(
   content: string,
   filePath: string,
 ): ValidationResult {
   const ext = path.extname(filePath).toLowerCase();
-  if (ext === ".html" || ext === ".htm") {
-    return validateHtml(content, filePath);
-  }
-  return validateJsx(content, filePath);
+  const result =
+    ext === ".html" || ext === ".htm"
+      ? validateHtml(content, filePath)
+      : validateJsx(content, filePath, loadComponentMap());
+
+  // Apply WCAG level filter from user settings
+  const level = getWcagLevel();
+  result.issues = filterByWcagLevel(result.issues, level);
+  result.stats = computeStats(result.issues);
+
+  return result;
 }

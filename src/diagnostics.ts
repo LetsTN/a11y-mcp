@@ -2,9 +2,11 @@ import * as vscode from "vscode";
 import * as path from "path";
 import { validateContent } from "./validator";
 import type { A11yIssue } from "./validator";
+import { contentHash } from "./utils";
 
 export class A11yDiagnosticsProvider {
   private readonly collection: vscode.DiagnosticCollection;
+  private readonly cache = new Map<string, { hash: string }>();
   private readonly SUPPORTED = new Set([
     ".html",
     ".htm",
@@ -29,19 +31,32 @@ export class A11yDiagnosticsProvider {
       return;
     }
 
-    const result = validateContent(document.getText(), document.fileName);
+    const content = document.getText();
+    const key = document.uri.toString();
+    const hash = contentHash(content);
+
+    // Incremental cache — skip unchanged files
+    const cached = this.cache.get(key);
+    if (cached && cached.hash === hash) {
+      return;
+    }
+
+    const result = validateContent(content, document.fileName);
     const diagnostics = result.issues.map((issue) =>
       this.issueToDiagnostic(issue, document),
     );
     this.collection.set(document.uri, diagnostics);
+    this.cache.set(key, { hash });
   }
 
   clearDocument(uri: vscode.Uri): void {
     this.collection.delete(uri);
+    this.cache.delete(uri.toString());
   }
 
   dispose(): void {
     this.collection.dispose();
+    this.cache.clear();
   }
 
   private issueToDiagnostic(
@@ -49,15 +64,15 @@ export class A11yDiagnosticsProvider {
     document: vscode.TextDocument,
   ): vscode.Diagnostic {
     // Convert 1-based line/column to 0-based for VS Code Range
-    const line = Math.max(0, issue.line - 1);
+    const line = Math.max(0, Math.min(issue.line - 1, document.lineCount - 1));
     const col = Math.max(0, issue.column - 1);
 
     // Try to get the actual line length to create a meaningful range
-    const textLine = document.lineAt(Math.min(line, document.lineCount - 1));
+    const textLine = document.lineAt(line);
     const rangeEnd = textLine.range.end.character;
 
     const range = new vscode.Range(
-      new vscode.Position(line, col),
+      new vscode.Position(line, Math.min(col, rangeEnd)),
       new vscode.Position(line, rangeEnd),
     );
 

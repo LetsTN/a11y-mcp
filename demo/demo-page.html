@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Loja</title>
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="/">Início</a>
+      <a href="/produtos">Produtos</a>
+      <a href="/contato">Contato</a>
+    </nav>
+  </header>
+
+  <main>
+    <h1>Bem-vindo à nossa loja</h1>
+    <h3>Produtos em destaque</h3>
+
+    <div class="product-card">
+      <img src="produto1.jpg">
+      <h4>Camiseta básica</h4>
+      <p>R$ 49,90</p>
+      <div onclick="addToCart(1)" style="outline: none; cursor: pointer;">Adicionar ao carrinho</div>
+    </div>
+
+    <div class="product-card">
+      <img src="produto2.jpg" alt="foto.png">
+      <h4>Calça jeans</h4>
+      <p>R$ 129,90</p>
+      <button></button>
+    </div>
+
+    <form>
+      <input type="text" name="email" placeholder="Seu email">
+      <input type="text" name="name">
+      <textarea></textarea>
+      <div role="alert">Preencha todos os campos</div>
+    </form>
+
+    <table>
+      <tr><td>Produto</td><td>Preço</td></tr>
+      <tr><td>Camiseta</td><td>R$ 49,90</td></tr>
+    </table>
+
+    <iframe src="https://maps.google.com"></iframe>
+
+    <video src="promo.mp4" autoplay></video>
+  </main>
+
+  <footer>
+    <a href="javascript:void(0)">Voltar ao topo</a>
+  </footer>
+</body>
+</html>

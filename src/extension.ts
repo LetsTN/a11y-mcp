@@ -2,11 +2,13 @@ import * as vscode from "vscode";
 import * as path from "path";
 import * as fs from "fs";
 import { A11yDiagnosticsProvider } from "./diagnostics";
+import { A11yCodeActionProvider } from "./codeActions";
 import { ValidateFileTool } from "./tools/validateFileTool";
 import { ValidateWorkspaceTool } from "./tools/validateWorkspaceTool";
 import { GetRuleTool } from "./tools/getRuleTool";
 import { ValidateUrlTool } from "./tools/validateUrlTool";
-import { validateContent, SUPPORTED_EXTENSIONS } from "./validator";
+import { validateContent } from "./validator";
+import { collectWorkspaceFiles, clearConfigCache } from "./utils";
 
 const SUPPORTED_LANGUAGES = new Set([
   "html",
@@ -30,6 +32,46 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.lm.registerTool("a11y_get_rule", new GetRuleTool()),
     vscode.lm.registerTool("a11y_validate_url", new ValidateUrlTool()),
   );
+
+  // ── Register Code Actions (QuickFix) ────────────────────────────────────
+  const codeActionSelector: vscode.DocumentSelector = [
+    { language: "html" },
+    { language: "javascriptreact" },
+    { language: "typescriptreact" },
+    { language: "javascript" },
+    { language: "typescript" },
+  ];
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      codeActionSelector,
+      new A11yCodeActionProvider(),
+      {
+        providedCodeActionKinds: A11yCodeActionProvider.providedCodeActionKinds,
+      },
+    ),
+  );
+
+  // ── Watch component-map config file ──────────────────────────────────
+  const configGlob = vscode.workspace
+    .getConfiguration("a11y-mcp")
+    .get<string>("configFile", ".a11y-mcp.json");
+  const watcher = vscode.workspace.createFileSystemWatcher(
+    new vscode.RelativePattern(
+      vscode.workspace.workspaceFolders?.[0] ?? "",
+      configGlob,
+    ),
+  );
+  const onConfigChange = () => {
+    clearConfigCache();
+    // Re-validate all open supported documents
+    vscode.workspace.textDocuments.forEach((doc) => {
+      if (isSupported(doc)) diagnosticsProvider.validateDocument(doc);
+    });
+  };
+  watcher.onDidChange(onConfigChange);
+  watcher.onDidCreate(onConfigChange);
+  watcher.onDidDelete(onConfigChange);
+  context.subscriptions.push(watcher);
 
   // ── Diagnostics on document open / change / save ────────────────────────
   context.subscriptions.push(
@@ -101,7 +143,7 @@ export function activate(context: vscode.ExtensionContext): void {
           cancellable: true,
         },
         async (progress, token) => {
-          const files = collectFiles(workspaceRoot, 200);
+          const files = await collectWorkspaceFiles(workspaceRoot, 200);
           let totalErrors = 0,
             totalWarnings = 0,
             totalNotices = 0;
@@ -117,7 +159,9 @@ export function activate(context: vscode.ExtensionContext): void {
             try {
               const content = fs.readFileSync(filePath, "utf-8");
               const fakeDoc = createFakeDocument(filePath, content);
+              // validateDocument already calls validateContent internally
               diagnosticsProvider.validateDocument(fakeDoc);
+              // Get stats from a fresh validation (cached result)
               const result = validateContent(content, filePath);
               totalErrors += result.stats.errors;
               totalWarnings += result.stats.warnings;
@@ -156,44 +200,6 @@ export function deactivate(): void {
 
 function isSupported(doc: vscode.TextDocument): boolean {
   return SUPPORTED_LANGUAGES.has(doc.languageId);
-}
-
-function collectFiles(dir: string, max: number): string[] {
-  const result: string[] = [];
-  const EXCLUDE_DIRS = new Set([
-    "node_modules",
-    "dist",
-    "build",
-    ".git",
-    "out",
-    ".next",
-    "coverage",
-    ".cache",
-    "vendor",
-  ]);
-
-  function walk(current: string): void {
-    if (result.length >= max) return;
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(current, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      if (result.length >= max) return;
-      const fullPath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        if (!EXCLUDE_DIRS.has(entry.name)) walk(fullPath);
-      } else if (entry.isFile()) {
-        const ext = path.extname(entry.name).toLowerCase();
-        if (SUPPORTED_EXTENSIONS.has(ext)) result.push(fullPath);
-      }
-    }
-  }
-
-  walk(dir);
-  return result;
 }
 
 /** Creates a minimal fake TextDocument for use with the diagnostics provider.

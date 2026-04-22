@@ -8,6 +8,7 @@
   "config.wcagLevel.description": "Nível mínimo de conformidade WCAG a ser aplicado.",
   "config.include.description": "Padrões glob para arquivos a validar.",
   "config.exclude.description": "Padrões glob para arquivos a excluir da validação.",
+  "config.configFile.description": "Caminho para o arquivo de configuração de mapeamento de componentes (relativo à raiz do workspace ou absoluto). Define como componentes React/de bibliotecas são mapeados para elementos HTML nativos na validação de acessibilidade.",
   "tool.validateFile.displayName": "Validar Acessibilidade do Arquivo",
   "tool.validateFile.modelDescription": "Valida problemas de acessibilidade em um arquivo HTML, JSX ou TSX com base nas regras WCAG 2.2 (AAA) e AccessMonitor. Retorna uma lista de violações com ID da regra, critério WCAG, severidade (error/warning/notice), o elemento infrator, número da linha e sugestão de correção. Use quando precisar auditar a acessibilidade de um arquivo específico.",
   "tool.validateFile.input.filePath": "Caminho absoluto ou relativo ao workspace do arquivo HTML, JSX ou TSX a validar.",
