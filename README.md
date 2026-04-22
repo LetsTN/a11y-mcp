@@ -2,9 +2,9 @@
 
 > Valida a acessibilidade **WCAG 2.2 (AAA)** em arquivos HTML, JSX e TSX — diretamente no VS Code, com diagnósticos inline e ferramentas para o GitHub Copilot.
 
-![VS Code](https://img.shields.io/badge/VS_Code-^1.95-007ACC?logo=visualstudiocode&logoColor=white)
+![VS Code](https://img.shields.io/badge/VS_Code-≥1.95-007ACC?logo=visualstudiocode&logoColor=white)
 ![WCAG 2.2](https://img.shields.io/badge/WCAG-2.2_AAA-6B21A8)
-![License: MIT](https://img.shields.io/badge/license-MIT-22c55e)
+![License: MIT](https://img.shields.io/badge/License-MIT-22c55e)
 
 ---
 
