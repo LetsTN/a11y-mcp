@@ -14,7 +14,7 @@ const buildOptions = {
   sourcesContent: false,
   platform: "node",
   outfile: "dist/extension.js",
-  external: ["vscode"],
+  external: ["vscode", "playwright"],
   logLevel: "info",
   // Allow top-level await in bundled dependencies
   target: "node18",

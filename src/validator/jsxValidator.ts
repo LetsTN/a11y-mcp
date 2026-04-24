@@ -1,7 +1,14 @@
 import * as vscode from "vscode";
 import { parse } from "@babel/parser";
-import type { A11yIssue, ValidationResult } from "./types";
-import { RULES } from "./rules";
+import type { A11yIssue, ValidationResult, ComponentMap } from "./types";
+import {
+  RULES,
+  VALID_ROLES,
+  NON_INTERACTIVE_TAGS,
+  ARIA_BOOLEAN_ATTRS,
+  ARIA_TOKEN_VALUES,
+} from "./rules";
+import { computeStats } from "../utils";
 
 // ─── Minimal AST typings (to avoid needing @babel/types as a dep) ─────────────
 
@@ -107,6 +114,70 @@ function getTagName(opening: JSXOpeningElement): string | null {
   return null;
 }
 
+/** Extract the component name from a JSXOpeningElement (uppercase identifiers and member expressions). */
+function getComponentName(opening: JSXOpeningElement): string | null {
+  const name = opening.name;
+  if (name.type === "JSXIdentifier") {
+    const n = (name as JSXIdentifier).name;
+    return n[0] === n[0].toUpperCase() ? n : null;
+  }
+  if (name.type === "JSXMemberExpression") {
+    return getMemberExpressionName(name as JSXMemberExpression);
+  }
+  return null;
+}
+
+function getMemberExpressionName(node: JSXMemberExpression): string {
+  const prop = node.property.name;
+  if (node.object.type === "JSXIdentifier") {
+    return `${(node.object as JSXIdentifier).name}.${prop}`;
+  }
+  return `${getMemberExpressionName(node.object as JSXMemberExpression)}.${prop}`;
+}
+
+/** Resolve a component to its native HTML tag using the component map.
+ *  Returns { tag, propMap } for mapped components, { tag } for native elements, or null. */
+function resolveElement(
+  opening: JSXOpeningElement,
+  componentMap: ComponentMap,
+): { tag: string; propMap?: Record<string, string> } | null {
+  const nativeTag = getTagName(opening);
+  if (nativeTag) return { tag: nativeTag };
+
+  const componentName = getComponentName(opening);
+  if (!componentName) return null;
+
+  // Try full name (e.g. "Mui.Button"), then short name (e.g. "Button")
+  const mapping =
+    componentMap[componentName] ??
+    (componentName.includes(".")
+      ? componentMap[componentName.split(".").pop()!]
+      : undefined);
+  if (!mapping) return null;
+
+  return { tag: mapping.as, propMap: mapping.propMap };
+}
+
+/**
+ * Create a resolved attributes map that adds standard HTML attribute names
+ * alongside the component's prop names. Existing attrs.get("aria-label") calls
+ * will find the value even if the component uses "ariaLabel" as prop name.
+ */
+function resolveAttrs(
+  attrs: Map<string, JSXAttribute>,
+  propMap?: Record<string, string>,
+): Map<string, JSXAttribute> {
+  if (!propMap) return attrs;
+  const resolved = new Map(attrs);
+  for (const [standardName, componentProp] of Object.entries(propMap)) {
+    const attr = attrs.get(componentProp);
+    if (attr && !resolved.has(standardName)) {
+      resolved.set(standardName, attr);
+    }
+  }
+  return resolved;
+}
+
 /** Get all JSXAttribute nodes indexed by name. */
 function getAttrs(opening: JSXOpeningElement): Map<string, JSXAttribute> {
   const map = new Map<string, JSXAttribute>();
@@ -137,8 +208,12 @@ function getAttrString(attr: JSXAttribute | undefined): string | null {
 
 /** Determine if a JSX element has an accessible name.
  *  Returns 'yes' | 'no' | 'maybe' (for dynamic expressions we can't evaluate). */
-function hasAccessibleName(el: JSXElement): "yes" | "no" | "maybe" {
-  const attrs = getAttrs(el.openingElement);
+function hasAccessibleName(
+  el: JSXElement,
+  propMap?: Record<string, string>,
+): "yes" | "no" | "maybe" {
+  const rawAttrs = getAttrs(el.openingElement);
+  const attrs = resolveAttrs(rawAttrs, propMap);
 
   const ariaLabel = attrs.get("aria-label");
   if (ariaLabel) {
@@ -199,11 +274,17 @@ function makeIssue(
 
 // ─── Rule checkers ────────────────────────────────────────────────────────────
 
-function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
-  const tag = getTagName(el.openingElement);
-  if (!tag) return; // Skip components
+function checkJsxElement(
+  el: JSXElement,
+  issues: A11yIssue[],
+  componentMap: ComponentMap,
+): void {
+  const resolved = resolveElement(el.openingElement, componentMap);
+  if (!resolved) return;
+  const { tag, propMap } = resolved;
 
-  const attrs = getAttrs(el.openingElement);
+  const rawAttrs = getAttrs(el.openingElement);
+  const attrs = resolveAttrs(rawAttrs, propMap);
 
   // ── Images ──────────────────────────────────────────────────────────────
   if (tag === "img") {
@@ -252,7 +333,7 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
 
   // ── Anchors ─────────────────────────────────────────────────────────────
   if (tag === "a") {
-    const result = hasAccessibleName(el);
+    const result = hasAccessibleName(el, propMap);
     if (result === "no") {
       issues.push(
         makeIssue(
@@ -268,7 +349,7 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
 
   // ── Buttons ─────────────────────────────────────────────────────────────
   if (tag === "button") {
-    const result = hasAccessibleName(el);
+    const result = hasAccessibleName(el, propMap);
     if (result === "no") {
       issues.push(
         makeIssue(
@@ -432,22 +513,7 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
   }
 
   // ── onClick on non-interactive element ──────────────────────────────────
-  const NON_INTERACTIVE_TAGS = new Set([
-    "div",
-    "span",
-    "p",
-    "section",
-    "article",
-    "li",
-    "ul",
-    "ol",
-    "header",
-    "footer",
-    "main",
-    "aside",
-    "nav",
-    "figure",
-  ]);
+
   if (NON_INTERACTIVE_TAGS.has(tag) && attrs.has("onClick")) {
     const role = getAttrString(attrs.get("role")) ?? "";
     const hasTabIndex = attrs.has("tabIndex") || attrs.has("tabindex");
@@ -494,89 +560,6 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
   }
 
   // ── Invalid ARIA role ────────────────────────────────────────────────────
-  const VALID_ROLES = new Set([
-    "alert",
-    "alertdialog",
-    "application",
-    "article",
-    "banner",
-    "blockquote",
-    "button",
-    "caption",
-    "cell",
-    "checkbox",
-    "code",
-    "columnheader",
-    "combobox",
-    "complementary",
-    "contentinfo",
-    "definition",
-    "deletion",
-    "dialog",
-    "directory",
-    "document",
-    "emphasis",
-    "feed",
-    "figure",
-    "form",
-    "generic",
-    "grid",
-    "gridcell",
-    "group",
-    "heading",
-    "img",
-    "insertion",
-    "link",
-    "list",
-    "listbox",
-    "listitem",
-    "log",
-    "main",
-    "marquee",
-    "math",
-    "menu",
-    "menubar",
-    "menuitem",
-    "menuitemcheckbox",
-    "menuitemradio",
-    "meter",
-    "navigation",
-    "none",
-    "note",
-    "option",
-    "paragraph",
-    "presentation",
-    "progressbar",
-    "radio",
-    "radiogroup",
-    "region",
-    "row",
-    "rowgroup",
-    "rowheader",
-    "scrollbar",
-    "search",
-    "searchbox",
-    "separator",
-    "slider",
-    "spinbutton",
-    "status",
-    "strong",
-    "subscript",
-    "superscript",
-    "switch",
-    "tab",
-    "table",
-    "tablist",
-    "tabpanel",
-    "term",
-    "textbox",
-    "timer",
-    "toolbar",
-    "tooltip",
-    "tree",
-    "treegrid",
-    "treeitem",
-  ]);
   const roleAttr = attrs.get("role");
   if (roleAttr) {
     const roleVal = getAttrString(roleAttr);
@@ -594,11 +577,248 @@ function checkJsxElement(el: JSXElement, issues: A11yIssue[]): void {
       }
     }
   }
+
+  // ── Invalid ARIA boolean/token values (aria_04) ─────────────────────────
+  for (const [attrName, attrNode] of attrs) {
+    if (!attrName.startsWith("aria-")) continue;
+    const val = getAttrString(attrNode);
+    if (val === null) continue; // dynamic expression
+    const normalized = val.trim().toLowerCase();
+    if (!normalized) continue;
+
+    if (ARIA_BOOLEAN_ATTRS.has(attrName)) {
+      if (normalized !== "true" && normalized !== "false") {
+        issues.push(
+          makeIssue(
+            "aria_04",
+            vscode.l10n.t(
+              '{0}="{1}" is not valid. Expected "true" or "false".',
+              attrName,
+              val,
+            ),
+            el,
+          ),
+        );
+      }
+    }
+    const tokenSet = ARIA_TOKEN_VALUES[attrName];
+    if (tokenSet && !tokenSet.has(normalized)) {
+      issues.push(
+        makeIssue(
+          "aria_04",
+          vscode.l10n.t(
+            '{0}="{1}" is not a valid value. Allowed: {2}.',
+            attrName,
+            val,
+            [...tokenSet].join(", "),
+          ),
+          el,
+        ),
+      );
+    }
+  }
+
+  // ── aria-hidden on focusable elements (element_02 / element_03) ─────────
+  const ariaHiddenVal = getAttrString(attrs.get("aria-hidden"));
+  if (ariaHiddenVal === "true") {
+    const FOCUSABLE_JSX_TAGS = new Set([
+      "a",
+      "button",
+      "input",
+      "select",
+      "textarea",
+      "iframe",
+    ]);
+    if (FOCUSABLE_JSX_TAGS.has(tag)) {
+      const tabIdx = getAttrString(attrs.get("tabIndex"));
+      if (tabIdx === null || parseInt(tabIdx, 10) >= 0) {
+        issues.push(
+          makeIssue(
+            "element_03",
+            vscode.l10n.t(
+              '<{0}> is focusable but has aria-hidden="true". Screen readers will not announce it.',
+              tag,
+            ),
+            el,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── Input type="image" without alt (inp_img_01b) ────────────────────────
+  if (tag === "input") {
+    const typeVal = (
+      getAttrString(
+        attrs.get("type") ?? (undefined as unknown as JSXAttribute),
+      ) ?? "text"
+    ).toLowerCase();
+    if (typeVal === "image") {
+      const alt = getAttrString(attrs.get("alt"));
+      if (alt === null || alt === undefined) {
+        if (!attrs.has("alt")) {
+          issues.push(
+            makeIssue(
+              "inp_img_01b",
+              vscode.l10n.t('<input type="image"> is missing the alt prop.'),
+              el,
+            ),
+          );
+        }
+      } else if (!alt.trim()) {
+        issues.push(
+          makeIssue(
+            "inp_img_01b",
+            vscode.l10n.t('<input type="image"> has empty alt text.'),
+            el,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── Object without accessible name (object_02) ─────────────────────────
+  if (tag === "object") {
+    const ariaHidden = getAttrString(attrs.get("aria-hidden")) === "true";
+    if (!ariaHidden) {
+      const ariaLabel = getAttrString(attrs.get("aria-label"))?.trim();
+      const ariaLabelledBy = getAttrString(
+        attrs.get("aria-labelledby"),
+      )?.trim();
+      const titleVal = getAttrString(attrs.get("title"))?.trim();
+      const hasExpr =
+        attrs.get("aria-label")?.value?.type === "JSXExpressionContainer" ||
+        attrs.get("aria-labelledby")?.value?.type === "JSXExpressionContainer";
+      if (!ariaLabel && !ariaLabelledBy && !titleVal && !hasExpr) {
+        issues.push(
+          makeIssue(
+            "object_02",
+            vscode.l10n.t(
+              "<object> has no accessible name (no aria-label, aria-labelledby, or title).",
+            ),
+            el,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── Video/Audio with autoplay (audio_video_02) ──────────────────────────
+  if (tag === "video" || tag === "audio") {
+    if (attrs.has("autoPlay") || attrs.has("autoplay")) {
+      const muted = attrs.has("muted");
+      if (!muted) {
+        issues.push(
+          makeIssue(
+            "audio_video_02",
+            vscode.l10n.t(
+              "<{0}> has autoPlay without muted. Automatic audio can disorient users.",
+              tag,
+            ),
+            el,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── Fieldset without legend (field_01) ──────────────────────────────────
+  if (tag === "fieldset") {
+    const hasLegend = el.children.some(
+      (c) =>
+        c.type === "JSXElement" &&
+        getTagName((c as JSXElement).openingElement) === "legend",
+    );
+    if (!hasLegend) {
+      issues.push(
+        makeIssue(
+          "field_01",
+          vscode.l10n.t("<fieldset> has no <legend> element."),
+          el,
+        ),
+      );
+    }
+  }
+
+  // ── Focus Visible — outline removed without alternative (focus_visible_01)
+  const styleAttr = attrs.get("style");
+  if (styleAttr) {
+    const styleVal = getAttrString(styleAttr);
+    if (styleVal) {
+      const styleLower = styleVal.toLowerCase();
+      if (
+        /outline\s*:\s*(none|0(px)?)\b/.test(styleLower) &&
+        !/box-shadow|border\s*:|background-color\s*:/.test(styleLower)
+      ) {
+        issues.push(
+          makeIssue(
+            "focus_visible_01",
+            vscode.l10n.t(
+              "Element removes focus outline (outline: none/0) without providing an alternative visible focus indicator.",
+            ),
+            el,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── Error Identification — aria-invalid without error message (error_id_01)
+  const ariaInvalid = attrs.get("aria-invalid");
+  if (ariaInvalid) {
+    const invalidVal = getAttrString(ariaInvalid);
+    if (invalidVal === "true") {
+      const errMsg = attrs.get("aria-errormessage");
+      const describedBy = attrs.get("aria-describedby");
+      const hasErrMsg = errMsg ? (getAttrString(errMsg) ?? "").trim() : "";
+      const hasDescBy = describedBy
+        ? (getAttrString(describedBy) ?? "").trim()
+        : "";
+      if (!hasErrMsg && !hasDescBy) {
+        issues.push(
+          makeIssue(
+            "error_id_01",
+            vscode.l10n.t(
+              'Element has aria-invalid="true" but no aria-errormessage or aria-describedby to describe the error.',
+            ),
+            el,
+          ),
+        );
+      }
+    }
+  }
+
+  // ── Status Messages — role="status"/"alert" without aria-live (status_msg_01)
+  const statusRoleAttr = attrs.get("role");
+  if (statusRoleAttr) {
+    const roleVal = getAttrString(statusRoleAttr);
+    if (roleVal === "status" || roleVal === "alert") {
+      const ariaLive = attrs.get("aria-live");
+      const liveVal = ariaLive ? (getAttrString(ariaLive) ?? "").trim() : "";
+      if (!liveVal) {
+        issues.push(
+          makeIssue(
+            "status_msg_01",
+            vscode.l10n.t(
+              'Element with role="{0}" has no explicit aria-live attribute. Add aria-live="{1}" for broader assistive technology support.',
+              roleVal,
+              roleVal === "alert" ? "assertive" : "polite",
+            ),
+            el,
+          ),
+        );
+      }
+    }
+  }
 }
 
 // ─── Main export ─────────────────────────────────────────────────────────────
 
-export function validateJsx(code: string, filePath: string): ValidationResult {
+export function validateJsx(
+  code: string,
+  filePath: string,
+  componentMap: ComponentMap = {},
+): ValidationResult {
   const issues: A11yIssue[] = [];
 
   let ast: BabelNode;
@@ -621,18 +841,13 @@ export function validateJsx(code: string, filePath: string): ValidationResult {
 
   traverse(ast, (node) => {
     if (node.type === "JSXElement") {
-      checkJsxElement(node as unknown as JSXElement, issues);
+      checkJsxElement(node as unknown as JSXElement, issues, componentMap);
     }
   });
 
   return {
     filePath,
     issues,
-    stats: {
-      errors: issues.filter((i) => i.severity === "error").length,
-      warnings: issues.filter((i) => i.severity === "warning").length,
-      notices: issues.filter((i) => i.severity === "notice").length,
-      total: issues.length,
-    },
+    stats: computeStats(issues),
   };
 }

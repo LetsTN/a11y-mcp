@@ -2,7 +2,7 @@
   "name": "a11y-mcp",
   "displayName": "%extension.displayName%",
   "description": "%extension.description%",
-  "version": "1.1.0",
+  "version": "1.5.0",
   "publisher": "LetsTN",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -95,12 +95,18 @@
             "**/build/**"
           ],
           "description": "%config.exclude.description%"
+        },
+        "a11y-mcp.configFile": {
+          "type": "string",
+          "default": ".a11y-mcp.json",
+          "description": "%config.configFile.description%"
         }
       }
     },
     "languageModelTools": [
       {
         "name": "a11y_validate_file",
+        "toolReferenceName": "a11y_validate_file",
         "tags": [
           "accessibility",
           "a11y",
@@ -127,6 +133,7 @@
       },
       {
         "name": "a11y_validate_workspace",
+        "toolReferenceName": "a11y_validate_workspace",
         "tags": [
           "accessibility",
           "a11y",
@@ -153,6 +160,7 @@
       },
       {
         "name": "a11y_get_rule",
+        "toolReferenceName": "a11y_get_rule",
         "tags": [
           "accessibility",
           "a11y",
@@ -178,6 +186,7 @@
       },
       {
         "name": "a11y_validate_url",
+        "toolReferenceName": "a11y_validate_url",
         "tags": [
           "accessibility",
           "a11y",
@@ -217,7 +226,9 @@
   },
   "dependencies": {
     "@babel/parser": "^7.26.0",
+    "axe-core": "^4.10.0",
     "cheerio": "^1.0.0",
+    "playwright": "^1.59.1",
     "react": "^19.2.5"
   },
   "devDependencies": {

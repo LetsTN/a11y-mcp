@@ -2,7 +2,18 @@ import * as vscode from "vscode";
 import * as cheerio from "cheerio";
 import type { AnyNode, Element } from "domhandler";
 import type { A11yIssue, ValidationResult } from "./types";
-import { RULES } from "./rules";
+import {
+  RULES,
+  VALID_ROLES,
+  VALID_ARIA_ATTRS,
+  REQUIRED_ARIA,
+  NON_INTERACTIVE_TAGS,
+  INTERACTIVE_ROLES,
+  ARIA_BOOLEAN_ATTRS,
+  ARIA_TOKEN_VALUES,
+  FOCUSABLE_SELECTORS,
+} from "./rules";
+import { computeStats } from "../utils";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -168,6 +179,70 @@ function checkImages(
       );
     }
   });
+
+  // Image link with empty/missing alt (a_03)
+  $("a").each((_, el) => {
+    const $a = $(el);
+    const imgs = $a.find("img");
+    if (imgs.length === 0) return;
+    // Only flag if link contains ONLY images (no text content)
+    const textContent = $a
+      .contents()
+      .toArray()
+      .filter((n) => n.type === "text")
+      .map((n) => (n as any).data?.trim() ?? "")
+      .join("");
+    if (textContent) return;
+    const ariaLabel = ($a.attr("aria-label") ?? "").trim();
+    const ariaLabelledBy = ($a.attr("aria-labelledby") ?? "").trim();
+    const title = ($a.attr("title") ?? "").trim();
+    if (ariaLabel || ariaLabelledBy || title) return;
+
+    imgs.each((_, img) => {
+      const alt = $(img).attr("alt");
+      if (alt === undefined || alt.trim() === "") {
+        issues.push(
+          makeIssue(
+            "a_03",
+            vscode.l10n.t(
+              "Link contains only an image with empty or missing alt text. The link has no accessible name.",
+            ),
+            el as Element,
+            $,
+            html,
+          ),
+        );
+      }
+    });
+  });
+
+  // Image map area without alt (area_01b)
+  $("area:not([alt]), area[alt='']").each((_, el) => {
+    issues.push(
+      makeIssue(
+        "area_01b",
+        vscode.l10n.t("<area> element in image map has no alt attribute."),
+        el as Element,
+        $,
+        html,
+      ),
+    );
+  });
+
+  // Input type="image" without alt (inp_img_01b)
+  $('input[type="image"]:not([alt]), input[type="image"][alt=""]').each(
+    (_, el) => {
+      issues.push(
+        makeIssue(
+          "inp_img_01b",
+          vscode.l10n.t('<input type="image"> has no alt attribute.'),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    },
+  );
 }
 
 function checkLinks(
@@ -206,7 +281,11 @@ function checkLinks(
       issues.push(
         makeIssue(
           "a_06",
-          `Adjacent links with identical accessible name "${nameA}" pointing to the same URL "${hrefA}". Combine into one link.`,
+          vscode.l10n.t(
+            'Adjacent links with identical accessible name "{0}" pointing to the same URL "{1}". Combine into one link.',
+            nameA,
+            hrefA,
+          ),
           a,
           $,
           html,
@@ -231,7 +310,10 @@ function checkLinks(
         issues.push(
           makeIssue(
             "a_09",
-            `Link with accessible name "${name}" points to different URLs elsewhere on the page.`,
+            vscode.l10n.t(
+              'Link with accessible name "{0}" points to different URLs elsewhere on the page.',
+              name,
+            ),
             el,
             $,
             html,
@@ -240,6 +322,61 @@ function checkLinks(
       });
     }
   }
+
+  // Links opening new window without warning
+  $('a[target="_blank"]').each((_, el) => {
+    const name = getAccessibleName($, el as Element);
+    const hasWarning =
+      /new (window|tab)/i.test(name) || /nova (janela|aba)/i.test(name);
+    if (!hasWarning) {
+      issues.push(
+        makeIssue(
+          "a_10",
+          vscode.l10n.t(
+            'Link with target="_blank" opens in a new window but does not warn the user.',
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+
+  // Redundant link title (a_05)
+  $("a[title]").each((_, el) => {
+    const $a = $(el);
+    const titleVal = ($a.attr("title") ?? "").trim().toLowerCase();
+    const textVal = $a.text().trim().toLowerCase();
+    if (titleVal && textVal && titleVal === textVal) {
+      issues.push(
+        makeIssue(
+          "a_05",
+          vscode.l10n.t(
+            "Link title attribute duplicates the link text. Remove the redundant title.",
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+
+  // javascript: URI (win_01)
+  $('a[href^="javascript:"]').each((_, el) => {
+    issues.push(
+      makeIssue(
+        "win_01",
+        vscode.l10n.t(
+          'Link uses "javascript:" URI. Use a <button> or proper event handler instead.',
+        ),
+        el as Element,
+        $,
+        html,
+      ),
+    );
+  });
 }
 
 function checkButtons(
@@ -403,6 +540,71 @@ function checkForms(
       );
     }
   });
+
+  // Inappropriate alt on non-image input (input_03)
+  $("input[alt]").each((_, el) => {
+    const type = ($(el).attr("type") ?? "text").toLowerCase();
+    if (type !== "image") {
+      issues.push(
+        makeIssue(
+          "input_03",
+          vscode.l10n.t(
+            '<input type="{0}"> has an alt attribute. alt is only valid on <input type="image">.',
+            type,
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+
+  // Label aria-label doesn't contain visible label text (label_03)
+  $("input[aria-label], select[aria-label], textarea[aria-label]").each(
+    (_, el) => {
+      const $el = $(el);
+      const ariaLabel = ($el.attr("aria-label") ?? "").trim().toLowerCase();
+      if (!ariaLabel) return;
+      const id = ($el.attr("id") ?? "").trim();
+      if (!id) return;
+      const $label = $(`label[for="${cssEscape(id)}"]`);
+      if ($label.length === 0) return;
+      const visibleText = $label.text().trim().toLowerCase();
+      if (visibleText && !ariaLabel.includes(visibleText)) {
+        issues.push(
+          makeIssue(
+            "label_03",
+            vscode.l10n.t(
+              'aria-label "{0}" does not contain the visible label text "{1}". Speech-input users may fail to activate this control.',
+              $el.attr("aria-label")!,
+              $label.text().trim(),
+            ),
+            el as Element,
+            $,
+            html,
+          ),
+        );
+      }
+    },
+  );
+
+  // Fieldset without legend (field_01)
+  $("fieldset").each((_, el) => {
+    const $fieldset = $(el);
+    const hasLegend = $fieldset.children("legend").length > 0;
+    if (!hasLegend) {
+      issues.push(
+        makeIssue(
+          "field_01",
+          vscode.l10n.t("<fieldset> has no <legend> element."),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
 }
 
 function checkHeadings(
@@ -486,6 +688,36 @@ function checkHeadings(
     }
   });
 
+  // Heading with only non-text content (images without alt) — hx_02
+  headings.forEach((el) => {
+    const $h = $(el);
+    const text = $h.text().trim();
+    if (text) return; // Has text content — OK
+    const ariaLabel = ($h.attr("aria-label") ?? "").trim();
+    if (ariaLabel) return;
+    const imgs = $h.find("img");
+    if (imgs.length === 0) return; // Empty heading already caught by heading_02
+    // Has images but no text — check if any img has alt
+    const hasAltOnImg = imgs.toArray().some((img) => {
+      const alt = $(img).attr("alt")?.trim();
+      return alt !== undefined && alt !== "";
+    });
+    if (!hasAltOnImg) {
+      issues.push(
+        makeIssue(
+          "hx_02",
+          vscode.l10n.t(
+            "<{0}> contains only image(s) without alt text. The heading has no accessible name.",
+            el.name,
+          ),
+          el,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+
   // Skipped heading levels
   let prevLevel = 0;
   headings.forEach((el) => {
@@ -547,6 +779,45 @@ function checkPage(
       fix: RULES.title_03.fix,
       helpUrl: RULES.title_03.helpUrl,
     });
+  } else {
+    const titleText = $title.text().trim();
+    // Title too short or too long (title_04)
+    if (titleText.length < 2 || titleText.length > 150) {
+      issues.push({
+        ruleId: "title_04",
+        severity: RULES.title_04.severity,
+        wcagCriteria: RULES.title_04.wcagCriteria,
+        wcagLevel: RULES.title_04.wcagLevel,
+        message: vscode.l10n.t(
+          "<title> is {0} characters long. Recommended: 2–150 characters.",
+          titleText.length,
+        ),
+        element: $.html($title) ?? "<title></title>",
+        selector: "title",
+        line: findLineInSource(html, "<title"),
+        column: 1,
+        fix: RULES.title_04.fix,
+        helpUrl: RULES.title_04.helpUrl,
+      });
+    }
+    // Title with special/control characters (title_05)
+    if (/[\x00-\x1F\x7F]/.test(titleText) || /^[^\w\s]+$/.test(titleText)) {
+      issues.push({
+        ruleId: "title_05",
+        severity: RULES.title_05.severity,
+        wcagCriteria: RULES.title_05.wcagCriteria,
+        wcagLevel: RULES.title_05.wcagLevel,
+        message: vscode.l10n.t(
+          "<title> contains control characters or non-descriptive content.",
+        ),
+        element: $.html($title) ?? "<title></title>",
+        selector: "title",
+        line: findLineInSource(html, "<title"),
+        column: 1,
+        fix: RULES.title_05.fix,
+        helpUrl: RULES.title_05.helpUrl,
+      });
+    }
   }
 
   // Language
@@ -584,6 +855,27 @@ function checkPage(
       helpUrl: RULES.lang_02.helpUrl,
     });
   }
+
+  // Invalid lang on internal elements (element_07)
+  $("[lang]").each((_, el) => {
+    if ((el as Element).name === "html") return;
+    const elLang = ($(el).attr("lang") ?? "").trim();
+    if (elLang && !/^[a-zA-Z]{2,3}(-[a-zA-Z0-9]{1,8})*$/.test(elLang)) {
+      issues.push(
+        makeIssue(
+          "element_07",
+          vscode.l10n.t(
+            '<{0} lang="{1}"> has an invalid BCP 47 language tag.',
+            (el as Element).name,
+            elLang,
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
 }
 
 function checkLandmarks(
@@ -653,6 +945,86 @@ function checkLandmarks(
       });
     }
   }
+
+  // Multiple skip navigation links (a_02b)
+  const skipLinks = $('a[href^="#"]')
+    .toArray()
+    .filter((el) => {
+      const text = getAccessibleName($, el as Element).toLowerCase();
+      return (
+        /skip|pular|ir para/i.test(text) ||
+        ($(el).attr("href") ?? "").match(/^#(main|content|conteudo)/i)
+      );
+    });
+  if (skipLinks.length > 1) {
+    skipLinks.slice(1).forEach((el) => {
+      issues.push(
+        makeIssue(
+          "a_02b",
+          vscode.l10n.t(
+            "Page has {0} skip navigation links. Typically one is sufficient.",
+            skipLinks.length,
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    });
+  }
+
+  // Duplicate banner landmarks (landmark_10)
+  const banners = $('header, [role="banner"]')
+    .toArray()
+    .filter((el) => {
+      // Only top-level banners (direct child of body or not nested in sectioning elements)
+      const parent = (el as Element).parent as Element | null;
+      return (
+        !parent || parent.name === "body" || parent.type === ("root" as any)
+      );
+    }) as Element[];
+  if (banners.length > 1) {
+    banners.slice(1).forEach((el) => {
+      issues.push(
+        makeIssue(
+          "landmark_10",
+          vscode.l10n.t(
+            "Page has {0} top-level banner landmarks. Only one is allowed.",
+            banners.length,
+          ),
+          el,
+          $,
+          html,
+        ),
+      );
+    });
+  }
+
+  // Duplicate contentinfo landmarks (landmark_12)
+  const contentinfos = $('footer, [role="contentinfo"]')
+    .toArray()
+    .filter((el) => {
+      const parent = (el as Element).parent as Element | null;
+      return (
+        !parent || parent.name === "body" || parent.type === ("root" as any)
+      );
+    }) as Element[];
+  if (contentinfos.length > 1) {
+    contentinfos.slice(1).forEach((el) => {
+      issues.push(
+        makeIssue(
+          "landmark_12",
+          vscode.l10n.t(
+            "Page has {0} top-level contentinfo landmarks. Only one is allowed.",
+            contentinfos.length,
+          ),
+          el,
+          $,
+          html,
+        ),
+      );
+    });
+  }
 }
 
 function checkTables(
@@ -703,6 +1075,58 @@ function checkTables(
         ),
       );
     });
+
+    // th without scope
+    $table.find("th:not([scope])").each((_, th) => {
+      issues.push(
+        makeIssue(
+          "table_06",
+          vscode.l10n.t("<th> element is missing a scope attribute."),
+          th as Element,
+          $,
+          html,
+        ),
+      );
+    });
+
+    // headers attribute referencing non-existent ID (headers_02)
+    $table.find("td[headers], th[headers]").each((_, cell) => {
+      const headerIds = ($(cell).attr("headers") ?? "")
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean);
+      for (const hid of headerIds) {
+        if ($table.find(`#${cssEscape(hid)}`).length === 0) {
+          issues.push(
+            makeIssue(
+              "headers_02",
+              vscode.l10n.t(
+                'headers attribute references id="{0}" which does not exist in this table.',
+                hid,
+              ),
+              cell as Element,
+              $,
+              html,
+            ),
+          );
+        }
+      }
+    });
+
+    // scope on non-th element (scope_01)
+    $table.find("td[scope]").each((_, td) => {
+      issues.push(
+        makeIssue(
+          "scope_01",
+          vscode.l10n.t(
+            "<td> has a scope attribute. scope is only meaningful on <th> elements.",
+          ),
+          td as Element,
+          $,
+          html,
+        ),
+      );
+    });
   });
 }
 
@@ -721,6 +1145,65 @@ function checkFrames(
         html,
       ),
     );
+  });
+
+  // frame without title (frame_01)
+  $('frame:not([title]), frame[title=""]').each((_, el) => {
+    issues.push(
+      makeIssue(
+        "frame_01",
+        vscode.l10n.t("frame element has no title attribute."),
+        el as Element,
+        $,
+        html,
+      ),
+    );
+  });
+
+  // Iframes with identical accessible names (iframe_02)
+  const iframeTitles = new Map<string, Element[]>();
+  $("iframe[title]").each((_, el) => {
+    const title = ($(el).attr("title") ?? "").trim().toLowerCase();
+    if (!title) return;
+    if (!iframeTitles.has(title)) iframeTitles.set(title, []);
+    iframeTitles.get(title)!.push(el as Element);
+  });
+  for (const [title, elements] of iframeTitles) {
+    if (elements.length > 1) {
+      elements.slice(1).forEach((el) => {
+        issues.push(
+          makeIssue(
+            "iframe_02",
+            vscode.l10n.t(
+              'Multiple iframes share the same title "{0}". Give each a unique title.',
+              title,
+            ),
+            el,
+            $,
+            html,
+          ),
+        );
+      });
+    }
+  }
+
+  // Iframe with negative tabindex (iframe_04)
+  $("iframe[tabindex]").each((_, el) => {
+    const val = parseInt($(el).attr("tabindex") ?? "0", 10);
+    if (val < 0) {
+      issues.push(
+        makeIssue(
+          "iframe_04",
+          vscode.l10n.t(
+            'iframe has tabindex="{0}" which prevents keyboard access.',
+            val,
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
   });
 }
 
@@ -758,157 +1241,6 @@ function checkAria(
   html: string,
   issues: A11yIssue[],
 ): void {
-  const VALID_ROLES = new Set([
-    "alert",
-    "alertdialog",
-    "application",
-    "article",
-    "banner",
-    "blockquote",
-    "button",
-    "caption",
-    "cell",
-    "checkbox",
-    "code",
-    "columnheader",
-    "combobox",
-    "complementary",
-    "contentinfo",
-    "definition",
-    "deletion",
-    "dialog",
-    "directory",
-    "document",
-    "emphasis",
-    "feed",
-    "figure",
-    "form",
-    "generic",
-    "grid",
-    "gridcell",
-    "group",
-    "heading",
-    "img",
-    "insertion",
-    "link",
-    "list",
-    "listbox",
-    "listitem",
-    "log",
-    "main",
-    "marquee",
-    "math",
-    "menu",
-    "menubar",
-    "menuitem",
-    "menuitemcheckbox",
-    "menuitemradio",
-    "meter",
-    "navigation",
-    "none",
-    "note",
-    "option",
-    "paragraph",
-    "presentation",
-    "progressbar",
-    "radio",
-    "radiogroup",
-    "region",
-    "row",
-    "rowgroup",
-    "rowheader",
-    "scrollbar",
-    "search",
-    "searchbox",
-    "separator",
-    "slider",
-    "spinbutton",
-    "status",
-    "strong",
-    "subscript",
-    "superscript",
-    "switch",
-    "tab",
-    "table",
-    "tablist",
-    "tabpanel",
-    "term",
-    "textbox",
-    "timer",
-    "toolbar",
-    "tooltip",
-    "tree",
-    "treegrid",
-    "treeitem",
-  ]);
-
-  const REQUIRED_ARIA: Record<string, string[]> = {
-    combobox: ["aria-expanded"],
-    slider: ["aria-valuenow", "aria-valuemin", "aria-valuemax"],
-    spinbutton: ["aria-valuenow", "aria-valuemin", "aria-valuemax"],
-    scrollbar: [
-      "aria-valuenow",
-      "aria-valuemin",
-      "aria-valuemax",
-      "aria-controls",
-    ],
-    separator: [], // only required when focusable
-    option: ["aria-selected"],
-  };
-
-  // Valid ARIA attributes (prefix check)
-  const VALID_ARIA_ATTRS = new Set([
-    "aria-activedescendant",
-    "aria-atomic",
-    "aria-autocomplete",
-    "aria-busy",
-    "aria-checked",
-    "aria-colcount",
-    "aria-colindex",
-    "aria-colspan",
-    "aria-controls",
-    "aria-current",
-    "aria-describedby",
-    "aria-description",
-    "aria-details",
-    "aria-disabled",
-    "aria-dropeffect",
-    "aria-errormessage",
-    "aria-expanded",
-    "aria-flowto",
-    "aria-grabbed",
-    "aria-haspopup",
-    "aria-hidden",
-    "aria-invalid",
-    "aria-keyshortcuts",
-    "aria-label",
-    "aria-labelledby",
-    "aria-level",
-    "aria-live",
-    "aria-modal",
-    "aria-multiline",
-    "aria-multiselectable",
-    "aria-orientation",
-    "aria-owns",
-    "aria-placeholder",
-    "aria-posinset",
-    "aria-pressed",
-    "aria-readonly",
-    "aria-relevant",
-    "aria-required",
-    "aria-roledescription",
-    "aria-rowcount",
-    "aria-rowindex",
-    "aria-rowspan",
-    "aria-selected",
-    "aria-setsize",
-    "aria-sort",
-    "aria-valuemax",
-    "aria-valuemin",
-    "aria-valuenow",
-    "aria-valuetext",
-  ]);
-
   $("[role]").each((_, el) => {
     const roles = ($(el).attr("role") ?? "").trim().split(/\s+/);
     for (const role of roles) {
@@ -946,11 +1278,13 @@ function checkAria(
     }
   });
 
-  // Unknown aria-* attributes
+  // Unknown aria-* attributes — skip elements without any aria-* attrs
   $("*").each((_, el) => {
     const attribs = (el as Element).attribs ?? {};
-    for (const attr of Object.keys(attribs)) {
-      if (attr.startsWith("aria-") && !VALID_ARIA_ATTRS.has(attr)) {
+    const ariaAttrs = Object.keys(attribs).filter((a) => a.startsWith("aria-"));
+    if (ariaAttrs.length === 0) return;
+    for (const attr of ariaAttrs) {
+      if (!VALID_ARIA_ATTRS.has(attr)) {
         issues.push(
           makeIssue(
             "aria_07",
@@ -961,8 +1295,81 @@ function checkAria(
           ),
         );
       }
+
+      // Invalid ARIA boolean/token values (aria_04)
+      const val = (attribs[attr] ?? "").trim().toLowerCase();
+      if (!val) continue;
+      if (ARIA_BOOLEAN_ATTRS.has(attr)) {
+        if (val !== "true" && val !== "false") {
+          issues.push(
+            makeIssue(
+              "aria_04",
+              vscode.l10n.t(
+                '{0}="{1}" is not valid. Expected "true" or "false".',
+                attr,
+                attribs[attr],
+              ),
+              el as Element,
+              $,
+              html,
+            ),
+          );
+        }
+      }
+      const tokenSet = ARIA_TOKEN_VALUES[attr];
+      if (tokenSet && !tokenSet.has(val)) {
+        issues.push(
+          makeIssue(
+            "aria_04",
+            vscode.l10n.t(
+              '{0}="{1}" is not a valid value. Allowed: {2}.',
+              attr,
+              attribs[attr],
+              [...tokenSet].join(", "),
+            ),
+            el as Element,
+            $,
+            html,
+          ),
+        );
+      }
     }
   });
+}
+
+function checkAriaReferences(
+  $: cheerio.CheerioAPI,
+  html: string,
+  issues: A11yIssue[],
+): void {
+  const ARIA_REF_ATTRS = [
+    "aria-labelledby",
+    "aria-describedby",
+    "aria-controls",
+    "aria-owns",
+  ];
+  for (const attr of ARIA_REF_ATTRS) {
+    $(`[${attr}]`).each((_, el) => {
+      const refs = ($(el).attr(attr) ?? "").trim().split(/\s+/).filter(Boolean);
+      for (const ref of refs) {
+        if ($(`#${cssEscape(ref)}`).length === 0) {
+          issues.push(
+            makeIssue(
+              "aria_03",
+              vscode.l10n.t(
+                '{0} references id "{1}" which does not exist in the document.',
+                attr,
+                ref,
+              ),
+              el as Element,
+              $,
+              html,
+            ),
+          );
+        }
+      }
+    });
+  }
 }
 
 function checkIds(
@@ -976,9 +1383,15 @@ function checkIds(
     if (!id) return;
     seen.set(id, (seen.get(id) ?? 0) + 1);
   });
+  const reported = new Set<string>();
   $("[id]").each((_, el) => {
     const id = $(el).attr("id") ?? "";
     if ((seen.get(id) ?? 0) > 1) {
+      if (!reported.has(id)) {
+        // Skip the first occurrence
+        reported.add(id);
+        return;
+      }
       issues.push(
         makeIssue(
           "id_02",
@@ -1021,17 +1434,53 @@ function checkMeta(
 
   // Auto-refresh
   $('meta[http-equiv="refresh"]').each((_, el) => {
-    issues.push(
-      makeIssue(
-        "meta_01",
-        vscode.l10n.t(
-          'Page uses <meta http-equiv="refresh"> for automatic reload or redirect.',
+    const content = ($(el).attr("content") ?? "").trim();
+    // Distinguish redirect (url=) from refresh, and delayed from immediate
+    const match = content.match(/^(\d+)\s*[;,]?\s*(url\s*=\s*(.+))?$/i);
+    const delay = match ? parseInt(match[1], 10) : 0;
+    const hasUrl = match ? !!match[2] : false;
+
+    if (hasUrl && delay === 0) {
+      // Immediate redirect — meta_02
+      issues.push(
+        makeIssue(
+          "meta_02",
+          vscode.l10n.t(
+            'Page uses <meta http-equiv="refresh"> for an immediate redirect. Use a server-side redirect.',
+          ),
+          el as Element,
+          $,
+          html,
         ),
-        el as Element,
-        $,
-        html,
-      ),
-    );
+      );
+    } else if (delay > 0) {
+      // Delayed refresh or redirect — meta_04
+      issues.push(
+        makeIssue(
+          "meta_04",
+          vscode.l10n.t(
+            'Page uses <meta http-equiv="refresh"> with a {0} second delay. Users are not in control of the timing.',
+            delay,
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    } else {
+      // Generic meta refresh — meta_01
+      issues.push(
+        makeIssue(
+          "meta_01",
+          vscode.l10n.t(
+            'Page uses <meta http-equiv="refresh"> for automatic reload or redirect.',
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
   });
 }
 
@@ -1116,6 +1565,25 @@ function checkMedia(
         ),
       );
     }
+
+    // Autoplay (audio_video_02)
+    if ($el.attr("autoplay") !== undefined) {
+      const isMuted = $el.attr("muted") !== undefined;
+      if (!isMuted) {
+        issues.push(
+          makeIssue(
+            "audio_video_02",
+            vscode.l10n.t(
+              "<{0}> has autoplay without muted. Automatic audio can disorient users.",
+              (el as Element).name,
+            ),
+            el as Element,
+            $,
+            html,
+          ),
+        );
+      }
+    }
   });
 }
 
@@ -1141,6 +1609,27 @@ function checkEventHandlers(
     );
   });
 
+  // Double click without keyboard alternative (ehandler_02)
+  $("[ondblclick]").each((_, el) => {
+    const hasKeyHandler =
+      $(el).attr("onkeydown") !== undefined ||
+      $(el).attr("onkeyup") !== undefined ||
+      $(el).attr("onkeypress") !== undefined;
+    if (!hasKeyHandler) {
+      issues.push(
+        makeIssue(
+          "ehandler_02",
+          vscode.l10n.t(
+            "Element has ondblclick but no keyboard event handler. Keyboard users cannot trigger this action.",
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+
   // tabindex > 0
   $("[tabindex]").each((_, el) => {
     const val = parseInt($(el).attr("tabindex") ?? "0", 10);
@@ -1161,34 +1650,6 @@ function checkEventHandlers(
   });
 
   // Interactive role on non-interactive element without keyboard support
-  const INTERACTIVE_ROLES = new Set([
-    "button",
-    "link",
-    "menuitem",
-    "option",
-    "treeitem",
-    "tab",
-    "menuitemcheckbox",
-    "menuitemradio",
-    "checkbox",
-    "radio",
-    "switch",
-  ]);
-  const NON_INTERACTIVE_TAGS = new Set([
-    "div",
-    "span",
-    "p",
-    "section",
-    "article",
-    "header",
-    "footer",
-    "main",
-    "aside",
-    "nav",
-    "li",
-    "ul",
-    "ol",
-  ]);
   $("[role]").each((_, el) => {
     const role = $(el).attr("role") ?? "";
     const tag = (el as Element).name;
@@ -1238,6 +1699,307 @@ function checkLists(
       );
     }
   });
+
+  // Invalid direct children of ul/ol (list_01)
+  const VALID_LIST_CHILDREN = new Set(["li", "script", "template"]);
+  $("ul, ol").each((_, el) => {
+    $(el)
+      .children()
+      .each((_, child) => {
+        if ((child as Element).type !== "tag") return;
+        const childName = (child as Element).name;
+        if (!VALID_LIST_CHILDREN.has(childName)) {
+          issues.push(
+            makeIssue(
+              "list_01",
+              vscode.l10n.t(
+                "<{0}> is a direct child of <{1}> but only <li> is allowed.",
+                childName,
+                (el as Element).name,
+              ),
+              child as Element,
+              $,
+              html,
+            ),
+          );
+        }
+      });
+  });
+
+  // Invalid direct children of dl (list_03)
+  const VALID_DL_CHILDREN = new Set(["dt", "dd", "div", "script", "template"]);
+  $("dl").each((_, el) => {
+    $(el)
+      .children()
+      .each((_, child) => {
+        if ((child as Element).type !== "tag") return;
+        const childName = (child as Element).name;
+        if (!VALID_DL_CHILDREN.has(childName)) {
+          issues.push(
+            makeIssue(
+              "list_03",
+              vscode.l10n.t(
+                "<{0}> is a direct child of <dl> but only <dt>, <dd>, or <div> are allowed.",
+                childName,
+              ),
+              child as Element,
+              $,
+              html,
+            ),
+          );
+        }
+      });
+  });
+}
+
+// ─── Accessibility tree / hidden checks ──────────────────────────────────────
+
+function checkAccessibilityTree(
+  $: cheerio.CheerioAPI,
+  html: string,
+  issues: A11yIssue[],
+): void {
+  // element_02 — aria-hidden="true" containing focusable children
+  $('[aria-hidden="true"]').each((_, el) => {
+    const $el = $(el);
+    const focusableChildren = $el.find(FOCUSABLE_SELECTORS);
+    focusableChildren.each((_, child) => {
+      const tabindex = $(child).attr("tabindex");
+      // Skip children with tabindex=-1 (already removed from tab order)
+      if (tabindex !== undefined && parseInt(tabindex, 10) < 0) return;
+      issues.push(
+        makeIssue(
+          "element_02",
+          vscode.l10n.t(
+            'aria-hidden="true" container has focusable child <{0}>. Keyboard users can still reach it.',
+            (child as Element).name,
+          ),
+          child as Element,
+          $,
+          html,
+        ),
+      );
+    });
+  });
+
+  // element_03 — focusable element itself has aria-hidden="true"
+  $(FOCUSABLE_SELECTORS).each((_, el) => {
+    const $el = $(el);
+    if ($el.attr("aria-hidden") === "true") {
+      const tabindex = $el.attr("tabindex");
+      if (tabindex !== undefined && parseInt(tabindex, 10) < 0) return;
+      issues.push(
+        makeIssue(
+          "element_03",
+          vscode.l10n.t(
+            '<{0}> is focusable but has aria-hidden="true". Screen readers will not announce it.',
+            (el as Element).name,
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+
+  // element_09 — role="presentation"/role="none" on focusable element or with focusable children
+  $('[role="presentation"], [role="none"]').each((_, el) => {
+    const $el = $(el);
+    const tag = (el as Element).name;
+    const isFocusable = $el.is(FOCUSABLE_SELECTORS);
+    const hasFocusableChildren = $el.find(FOCUSABLE_SELECTORS).length > 0;
+    if (isFocusable || hasFocusableChildren) {
+      issues.push(
+        makeIssue(
+          "element_09",
+          vscode.l10n.t(
+            '<{0} role="{1}"> has focusable content. Presentational role conflicts with interactive semantics.',
+            tag,
+            $el.attr("role")!,
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+}
+
+// ─── Structural / misc checks ────────────────────────────────────────────────
+
+function checkStructure(
+  $: cheerio.CheerioAPI,
+  html: string,
+  issues: A11yIssue[],
+): void {
+  // br_01 — Consecutive <br> elements
+  $("br").each((_, el) => {
+    const next = (el as Element).next;
+    // Skip whitespace text nodes
+    let sibling: AnyNode | null = next;
+    while (
+      sibling &&
+      sibling.type === "text" &&
+      !(sibling as any).data?.trim()
+    ) {
+      sibling = (sibling as any).next;
+    }
+    if (sibling && (sibling as Element).name === "br") {
+      issues.push(
+        makeIssue(
+          "br_01",
+          vscode.l10n.t(
+            "Consecutive <br> elements used for layout spacing. Use CSS margin/padding instead.",
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+
+  // blink_02 — text-decoration: blink in inline styles
+  $("[style]").each((_, el) => {
+    const style = ($(el).attr("style") ?? "").toLowerCase();
+    if (/text-decoration\s*:\s*[^;]*blink/.test(style)) {
+      issues.push(
+        makeIssue(
+          "blink_02",
+          vscode.l10n.t(
+            "Element uses text-decoration: blink. Blinking content can cause seizures.",
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+
+  // abbr_01 — <abbr> without title
+  $("abbr:not([title]), abbr[title='']").each((_, el) => {
+    issues.push(
+      makeIssue(
+        "abbr_01",
+        vscode.l10n.t(
+          "<abbr> has no title attribute. Provide the expanded form of the abbreviation.",
+        ),
+        el as Element,
+        $,
+        html,
+      ),
+    );
+  });
+
+  // object_02 — <object> without accessible name
+  $("object").each((_, el) => {
+    const $el = $(el);
+    const ariaLabel = ($el.attr("aria-label") ?? "").trim();
+    const ariaLabelledBy = ($el.attr("aria-labelledby") ?? "").trim();
+    const title = ($el.attr("title") ?? "").trim();
+    const ariaHidden = $el.attr("aria-hidden") === "true";
+    if (!ariaHidden && !ariaLabel && !ariaLabelledBy && !title) {
+      issues.push(
+        makeIssue(
+          "object_02",
+          vscode.l10n.t(
+            "<object> has no accessible name (no aria-label, aria-labelledby, or title).",
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+}
+
+// ─── Focus Visible ───────────────────────────────────────────────────────────
+
+function checkFocusVisible(
+  $: cheerio.CheerioAPI,
+  html: string,
+  issues: A11yIssue[],
+): void {
+  $("[style]").each((_, el) => {
+    const style = ($(el).attr("style") ?? "").toLowerCase();
+    // Check for outline removal: outline: none, outline: 0, outline:0px, etc.
+    if (
+      /outline\s*:\s*(none|0(px)?)\b/.test(style) &&
+      !/box-shadow|border\s*:|background-color\s*:/.test(style)
+    ) {
+      issues.push(
+        makeIssue(
+          "focus_visible_01",
+          vscode.l10n.t(
+            "Element removes focus outline (outline: none/0) without providing an alternative visible focus indicator.",
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+}
+
+// ─── Error Identification ────────────────────────────────────────────────────
+
+function checkErrorIdentification(
+  $: cheerio.CheerioAPI,
+  html: string,
+  issues: A11yIssue[],
+): void {
+  $("[aria-invalid='true']").each((_, el) => {
+    const $el = $(el);
+    const errMsg = ($el.attr("aria-errormessage") ?? "").trim();
+    const describedBy = ($el.attr("aria-describedby") ?? "").trim();
+    if (!errMsg && !describedBy) {
+      issues.push(
+        makeIssue(
+          "error_id_01",
+          vscode.l10n.t(
+            'Element has aria-invalid="true" but no aria-errormessage or aria-describedby to describe the error.',
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
+}
+
+// ─── Status Messages ─────────────────────────────────────────────────────────
+
+function checkStatusMessages(
+  $: cheerio.CheerioAPI,
+  html: string,
+  issues: A11yIssue[],
+): void {
+  $('[role="status"], [role="alert"]').each((_, el) => {
+    const $el = $(el);
+    const ariaLive = ($el.attr("aria-live") ?? "").trim();
+    if (!ariaLive) {
+      const role = $el.attr("role")!;
+      issues.push(
+        makeIssue(
+          "status_msg_01",
+          vscode.l10n.t(
+            'Element with role="{0}" has no explicit aria-live attribute. Add aria-live="{1}" for broader assistive technology support.',
+            role,
+            role === "alert" ? "assertive" : "polite",
+          ),
+          el as Element,
+          $,
+          html,
+        ),
+      );
+    }
+  });
 }
 
 // ─── Main export ─────────────────────────────────────────────────────────────
@@ -1257,21 +2019,22 @@ export function validateHtml(html: string, filePath: string): ValidationResult {
   checkFrames($, html, issues);
   checkSvg($, html, issues);
   checkAria($, html, issues);
+  checkAriaReferences($, html, issues);
   checkIds($, html, issues);
   checkMeta($, html, issues);
   checkObsoleteElements($, html, issues);
   checkMedia($, html, issues);
   checkEventHandlers($, html, issues);
   checkLists($, html, issues);
+  checkAccessibilityTree($, html, issues);
+  checkStructure($, html, issues);
+  checkFocusVisible($, html, issues);
+  checkErrorIdentification($, html, issues);
+  checkStatusMessages($, html, issues);
 
   return {
     filePath,
     issues,
-    stats: {
-      errors: issues.filter((i) => i.severity === "error").length,
-      warnings: issues.filter((i) => i.severity === "warning").length,
-      notices: issues.filter((i) => i.severity === "notice").length,
-      total: issues.length,
-    },
+    stats: computeStats(issues),
   };
 }

@@ -2,14 +2,23 @@ import * as vscode from "vscode";
 import * as http from "http";
 import * as https from "https";
 import { validateHtml } from "../validator/htmlValidator";
-import type { ValidationResult } from "../validator/types";
+import type { A11yIssue, ValidationResult } from "../validator/types";
+import {
+  isPlaywrightAvailable,
+  validateWithBrowser,
+} from "../validator/browserValidator";
 
 export interface ValidateUrlInput {
   url: string;
 }
 
-/** Fetches the HTML content of a URL using Node's built-in http/https. */
-function fetchUrl(url: string): Promise<string> {
+/** Fetches the HTML content of a URL using Node's built-in http/https.
+ *  Enforces a 10 MB response size limit and max 3 redirects. */
+function fetchUrl(
+  url: string,
+  maxBytes: number = 10 * 1024 * 1024,
+  maxRedirects: number = 3,
+): Promise<string> {
   return new Promise((resolve, reject) => {
     const client = url.startsWith("https://") ? https : http;
     const req = client.get(url, { timeout: 10000 }, (res) => {
@@ -19,8 +28,13 @@ function fetchUrl(url: string): Promise<string> {
         res.statusCode < 400 &&
         res.headers.location
       ) {
-        // Follow one redirect
-        fetchUrl(res.headers.location).then(resolve).catch(reject);
+        if (maxRedirects <= 0) {
+          reject(new Error("Too many redirects"));
+          return;
+        }
+        fetchUrl(res.headers.location, maxBytes, maxRedirects - 1)
+          .then(resolve)
+          .catch(reject);
         return;
       }
       if (res.statusCode && res.statusCode >= 400) {
@@ -28,7 +42,20 @@ function fetchUrl(url: string): Promise<string> {
         return;
       }
       const chunks: Buffer[] = [];
-      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      let totalBytes = 0;
+      res.on("data", (chunk: Buffer) => {
+        totalBytes += chunk.length;
+        if (totalBytes > maxBytes) {
+          req.destroy();
+          reject(
+            new Error(
+              `Response exceeded ${Math.round(maxBytes / 1024 / 1024)} MB limit`,
+            ),
+          );
+          return;
+        }
+        chunks.push(chunk);
+      });
       res.on("end", () => resolve(Buffer.concat(chunks).toString("utf-8")));
       res.on("error", reject);
     });
@@ -108,6 +135,46 @@ export class ValidateUrlTool implements vscode.LanguageModelTool<ValidateUrlInpu
       ]);
     }
 
+    // ── Try Playwright-based browser validation ──────────────────────────
+    if (isPlaywrightAvailable()) {
+      try {
+        const result = await validateWithBrowser(url);
+        return new vscode.LanguageModelToolResult([
+          new vscode.LanguageModelTextPart(
+            formatBrowserResult(
+              url,
+              result.staticResult,
+              result.axeIssues,
+              result.axeStats,
+            ),
+          ),
+        ]);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        // Fall through to HTTP fetch if browser fails
+        const warnings = [
+          vscode.l10n.t(
+            "⚠️ Browser validation failed ({0}). Falling back to HTTP fetch (static HTML only).",
+            msg,
+          ),
+        ];
+        return await this.fallbackHttpValidation(url, warnings);
+      }
+    }
+
+    // ── Fallback: HTTP fetch ─────────────────────────────────────────────
+    const warnings = [
+      vscode.l10n.t(
+        "💡 **Tip:** Install `playwright` (`npm i playwright && npx playwright install chromium`) for deeper runtime analysis with axe-core — covering contrast, focus visibility, keyboard traps, and more WCAG criteria.",
+      ),
+    ];
+    return await this.fallbackHttpValidation(url, warnings);
+  }
+
+  private async fallbackHttpValidation(
+    url: string,
+    warnings: string[],
+  ): Promise<vscode.LanguageModelToolResult> {
     let html: string;
     try {
       html = await fetchUrl(url);
@@ -121,8 +188,6 @@ export class ValidateUrlTool implements vscode.LanguageModelTool<ValidateUrlInpu
     }
 
     const csrType = detectCsr(html);
-    const warnings: string[] = [];
-
     if (csrType) {
       warnings.push(
         vscode.l10n.t(
@@ -215,4 +280,127 @@ function formatUrlResult(
   }
 
   return lines.join("\n");
+}
+
+function formatBrowserResult(
+  url: string,
+  staticResult: ValidationResult,
+  axeIssues: A11yIssue[],
+  axeStats: ValidationResult["stats"],
+): string {
+  const lines: string[] = [
+    vscode.l10n.t("## Accessibility Validation: {0}", url),
+    "",
+    vscode.l10n.t(
+      "🌐 **Mode: Browser (Playwright + axe-core)** — Full runtime analysis",
+    ),
+    "",
+  ];
+
+  // ── Section 1: Static HTML analysis ──────────────────────────────────────
+  const { issues: staticIssues, stats: staticStats } = staticResult;
+  lines.push(vscode.l10n.t("### 📋 Static HTML Analysis ({0} rules)", "85"));
+  lines.push(
+    vscode.l10n.t(
+      "**Summary:** {0} issue(s) — {1} error(s), {2} warning(s), {3} notice(s)",
+      staticStats.total,
+      staticStats.errors,
+      staticStats.warnings,
+      staticStats.notices,
+    ),
+    "",
+  );
+
+  if (staticIssues.length > 0) {
+    formatIssuesBySection(staticIssues, lines);
+  } else {
+    lines.push(vscode.l10n.t("✅ No issues found in static analysis."), "");
+  }
+
+  // ── Section 2: axe-core runtime analysis ─────────────────────────────────
+  lines.push(vscode.l10n.t("### 🔬 Runtime Analysis (axe-core)"));
+  lines.push(
+    vscode.l10n.t(
+      "**Summary:** {0} issue(s) — {1} error(s), {2} warning(s), {3} notice(s)",
+      axeStats.total,
+      axeStats.errors,
+      axeStats.warnings,
+      axeStats.notices,
+    ),
+    "",
+  );
+
+  if (axeIssues.length > 0) {
+    formatIssuesBySection(axeIssues, lines);
+  } else {
+    lines.push(vscode.l10n.t("✅ No issues found in runtime analysis."), "");
+  }
+
+  // ── Combined totals ─────────────────────────────────────────────────────
+  const totalIssues = staticStats.total + axeStats.total;
+  const totalErrors = staticStats.errors + axeStats.errors;
+  const totalWarnings = staticStats.warnings + axeStats.warnings;
+  const totalNotices = staticStats.notices + axeStats.notices;
+
+  lines.push("---");
+  lines.push(
+    vscode.l10n.t(
+      "**Total combined:** {0} issue(s) — {1} error(s), {2} warning(s), {3} notice(s)",
+      totalIssues,
+      totalErrors,
+      totalWarnings,
+      totalNotices,
+    ),
+  );
+
+  return lines.join("\n");
+}
+
+function formatIssuesBySection(issues: A11yIssue[], lines: string[]): void {
+  const grouped = {
+    error: issues.filter((i) => i.severity === "error"),
+    warning: issues.filter((i) => i.severity === "warning"),
+    notice: issues.filter((i) => i.severity === "notice"),
+  };
+
+  for (const [severity, list] of Object.entries(grouped)) {
+    if (list.length === 0) continue;
+    const icon =
+      severity === "error" ? "🔴" : severity === "warning" ? "🟡" : "🔵";
+    const severityLabel =
+      severity === "error"
+        ? vscode.l10n.t("Errors")
+        : severity === "warning"
+          ? vscode.l10n.t("Warnings")
+          : vscode.l10n.t("Notices");
+    lines.push(`#### ${icon} ${severityLabel} (${list.length})`);
+    lines.push("");
+    for (const issue of list) {
+      if (issue.line > 0) {
+        lines.push(
+          vscode.l10n.t(
+            "**[{0}]** Line {1}: {2}",
+            issue.ruleId,
+            issue.line,
+            issue.message,
+          ),
+        );
+      } else {
+        lines.push(`**[${issue.ruleId}]** ${issue.message}`);
+      }
+      lines.push(
+        vscode.l10n.t(
+          "- WCAG: {0} (Level {1})",
+          issue.wcagCriteria.join(", "),
+          issue.wcagLevel,
+        ),
+      );
+      lines.push(vscode.l10n.t("- Element: `{0}`", issue.element));
+      lines.push(vscode.l10n.t("- Fix: {0}", issue.fix));
+      if (issue.helpUrl) {
+        lines.push(vscode.l10n.t("- Reference: {0}", issue.helpUrl));
+      }
+      lines.push("");
+    }
+  }
 }
